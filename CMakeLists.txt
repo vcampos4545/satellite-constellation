@@ -42,6 +42,7 @@ add_executable(constelation
     src/Universe.cpp
     src/Camera.cpp
     src/Sphere.cpp
+    src/Cube.cpp
     src/Shader.cpp
     src/Texture.cpp
     src/Satellite.cpp

@@ -24,6 +24,7 @@ public:
   // Get specific bodies (if needed)
   std::shared_ptr<CelestialBody> getEarth() const { return earth; }
   std::shared_ptr<CelestialBody> getSun() const { return sun; }
+  std::shared_ptr<CelestialBody> getMoon() const { return moon; }
 
   // Initialize with Earth and Sun
   void initializeEarthAndSun();
@@ -42,6 +43,8 @@ private:
   std::vector<std::shared_ptr<Satellite>> satellites;
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;
+  std::shared_ptr<CelestialBody> moon;
+  double moonOrbitAngle; // Current angle of moon's orbit around Earth
 };
 
 #endif // UNIVERSE_H

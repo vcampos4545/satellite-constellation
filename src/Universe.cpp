@@ -8,13 +8,16 @@ const double EARTH_MASS = 5.972e24;   // kg
 const double EARTH_RADIUS = 6.371e6;  // meters
 const double SUN_MASS = 1.989e30;     // kg
 const double SUN_RADIUS = 6.96e8;     // meters
+const double MOON_MASS = 7.342e22;    // kg
+const double MOON_RADIUS = 1.7371e6;  // meters
+const double MOON_ORBIT_RADIUS = 3.844e8; // meters (384,400 km from Earth)
 const double AU = 1.496e11;           // Astronomical Unit in meters
 const double G = 6.67430e-11;         // Gravitational constant
 const double GEO_ALTITUDE = 35.786e6; // GEO altitude above Earth surface (meters)
 const double LEO_ALTITUDE = 550e3;    // Starlink altitude ~550 km
 const double PI = 3.14159265359;
 
-Universe::Universe()
+Universe::Universe() : moonOrbitAngle(0.0)
 {
 }
 
@@ -47,6 +50,15 @@ void Universe::initializeEarthAndSun()
       glm::vec3(1.0f, 0.9f, 0.6f) // Yellowish color
   );
   bodies.push_back(sun);
+
+  // Create Moon orbiting Earth
+  moon = std::make_shared<CelestialBody>(
+      glm::dvec3(MOON_ORBIT_RADIUS, 0.0, 0.0),
+      MOON_MASS,
+      MOON_RADIUS,
+      glm::vec3(0.7f, 0.7f, 0.7f) // Gray color
+  );
+  bodies.push_back(moon);
 }
 
 void Universe::addGEOSatellite()
@@ -60,7 +72,13 @@ void Universe::addGEOSatellite()
   glm::dvec3 velocity(0.0, 0.0, -orbitalVelocity);
 
   // Create satellite with bright color for visibility
-  auto satellite = std::make_shared<Satellite>(position, velocity, glm::vec3(1.0f, 1.0f, 0.0f));
+  auto satellite = std::make_shared<Satellite>(
+      position,
+      velocity,
+      glm::vec3(1.0f, 1.0f, 0.0f), // Yellow color
+      -1,  // planeId (-1 for GEO satellites)
+      0    // indexInPlane
+  );
 
   // Calculate complete orbital path
   satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), 120);
@@ -113,7 +131,9 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
       auto satellite = std::make_shared<Satellite>(
           position,
           velocity,
-          glm::vec3(0.3f, 0.9f, 1.0f) // Bright cyan color
+          glm::vec3(0.3f, 0.9f, 1.0f), // Bright cyan color
+          plane,                        // planeId
+          sat                           // indexInPlane
       );
 
       // Calculate complete orbital path
@@ -126,6 +146,23 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
 
 void Universe::update(double deltaTime, double maxPhysicsStep)
 {
+  // Update moon's orbit around Earth
+  // Moon orbital period: 27.3 days
+  const double MOON_ORBITAL_PERIOD = 27.3 * 24.0 * 3600.0; // seconds
+  const double MOON_ANGULAR_VELOCITY = 2.0 * PI / MOON_ORBITAL_PERIOD; // radians per second
+
+  moonOrbitAngle += MOON_ANGULAR_VELOCITY * deltaTime;
+
+  // Update moon's position (circular orbit around Earth in x-z plane)
+  if (moon)
+  {
+    glm::dvec3 earthPos = earth->getPosition();
+    moon->setPosition(glm::dvec3(
+        earthPos.x + MOON_ORBIT_RADIUS * cos(moonOrbitAngle),
+        earthPos.y,
+        earthPos.z + MOON_ORBIT_RADIUS * sin(moonOrbitAngle)));
+  }
+
   // Use sub-stepping to keep physics stable even with large time warps
   // Break large time steps into smaller chunks
   double remainingTime = deltaTime;

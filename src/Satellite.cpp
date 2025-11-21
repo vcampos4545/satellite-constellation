@@ -3,8 +3,8 @@
 
 const double G = 6.67430e-11; // Gravitational constant (m^3 kg^-1 s^-2)
 
-Satellite::Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color)
-    : position(position), velocity(velocity), color(color)
+Satellite::Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId, int indexInPlane)
+    : position(position), velocity(velocity), color(color), planeId(planeId), indexInPlane(indexInPlane)
 {
 }
 

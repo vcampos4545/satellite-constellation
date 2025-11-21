@@ -7,7 +7,7 @@
 class Satellite
 {
 public:
-  Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color);
+  Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0);
 
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthPosition, double earthMass);
@@ -20,6 +20,9 @@ public:
   glm::dvec3 getVelocity() const { return velocity; }
   glm::vec3 getColor() const { return color; }
   const std::vector<glm::dvec3> &getOrbitPath() const { return orbitPath; }
+  int getPlaneId() const { return planeId; }
+  int getIndexInPlane() const { return indexInPlane; }
+  bool shouldDrawOrbit() const { return indexInPlane == 0; } // Only draw orbit for first satellite in each plane
 
   // Clear and rebuild orbit path
   void clearOrbitPath() { orbitPath.clear(); }
@@ -32,6 +35,9 @@ private:
 
   std::vector<glm::dvec3> orbitPath; // Historical positions for drawing orbit
   int orbitPathMaxSize = 1000; // Maximum number of points to store
+
+  int planeId;        // Orbital plane identifier
+  int indexInPlane;   // Index of this satellite within its plane
 };
 
 #endif // SATELLITE_H

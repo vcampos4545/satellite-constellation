@@ -17,6 +17,7 @@ These are simulated space based solar power satellites, beaming energy to earth 
 #include "Universe.h"
 #include "Camera.h"
 #include "Sphere.h"
+#include "Cube.h"
 #include "Shader.h"
 #include "Texture.h"
 #include "LineRenderer.h"
@@ -206,7 +207,7 @@ int main()
   universe.addGEOSatellite();
 
   // Create camera
-  Camera camera(45.0f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 1e5f, 1e10f);
+  Camera camera(45.0f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 1e5f, 2e11f); // Far plane extended to 200 million km to see the sun
   camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f));
   camera.setDistance(1.5e7f); // 15,000 km from Earth - good view of LEO constellation
 
@@ -238,6 +239,9 @@ int main()
 
   // Create sphere mesh for rendering (unit sphere, we'll scale it)
   Sphere sphereMesh(1.0f, 30, 30);
+
+  // Create cube mesh for rendering satellites
+  Cube cubeMesh;
 
   // Create line renderer for orbit paths
   LineRenderer lineRenderer;
@@ -349,22 +353,72 @@ int main()
 
     sphereMesh.draw();
 
-    // Render satellites (smaller and brighter)
-    for (const auto &satellite : universe.getSatellites())
+    // Render Moon
+    auto moon = universe.getMoon();
+    if (moon)
     {
-      glm::mat4 satModel = glm::mat4(1.0f);
-      satModel = glm::translate(satModel, glm::vec3(satellite->getPosition()));
-      satModel = glm::scale(satModel, glm::vec3(1.5e5f)); // 150 km radius for visibility
-      sphereShader.setMat4("model", satModel);
-
-      // Make satellites brighter
-      glm::vec3 brightColor = satellite->getColor() * 1.5f; // Increase brightness
-      sphereShader.setVec3("objectColor", brightColor);
+      glm::mat4 moonModel = glm::mat4(1.0f);
+      moonModel = glm::translate(moonModel, glm::vec3(moon->getPosition()));
+      moonModel = glm::scale(moonModel, glm::vec3(moon->getRadius()));
+      sphereShader.setMat4("model", moonModel);
+      sphereShader.setVec3("objectColor", moon->getColor());
       sphereShader.setBool("useTexture", false);
       sphereMesh.draw();
     }
 
-    // Render orbit paths with improved visuals
+    // Render Sun (make it bright and self-lit)
+    auto sun = universe.getSun();
+    if (sun)
+    {
+      glm::mat4 sunModel = glm::mat4(1.0f);
+      sunModel = glm::translate(sunModel, glm::vec3(sun->getPosition()));
+      sunModel = glm::scale(sunModel, glm::vec3(sun->getRadius()));
+      sphereShader.setMat4("model", sunModel);
+      // Make the sun very bright (emissive-like by using high values)
+      glm::vec3 sunColor = sun->getColor() * 3.0f; // Extra bright
+      sphereShader.setVec3("objectColor", sunColor);
+      sphereShader.setBool("useTexture", false);
+      sphereMesh.draw();
+    }
+
+    // Render satellites with body + solar panels
+    sphereShader.setBool("useTexture", false);
+    for (const auto &satellite : universe.getSatellites())
+    {
+      glm::vec3 satPos = glm::vec3(satellite->getPosition());
+      glm::vec3 brightColor = satellite->getColor() * 1.5f; // Make satellites brighter
+      sphereShader.setVec3("objectColor", brightColor);
+
+      // Render central body (elongated box)
+      glm::mat4 bodyModel = glm::mat4(1.0f);
+      bodyModel = glm::translate(bodyModel, satPos);
+      bodyModel = glm::scale(bodyModel, glm::vec3(8.0e4f, 1.2e5f, 8.0e4f)); // 80km x 120km x 80km
+      sphereShader.setMat4("model", bodyModel);
+      cubeMesh.draw();
+
+      // Render left solar panel (thin flat box)
+      glm::mat4 leftPanelModel = glm::mat4(1.0f);
+      leftPanelModel = glm::translate(leftPanelModel, satPos);
+      leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e5f, 0.0f, 0.0f)); // Offset to the left
+      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f)); // 200km x 180km x 20km (thin)
+      sphereShader.setMat4("model", leftPanelModel);
+
+      // Make solar panels slightly darker (blueish tint for solar cells)
+      glm::vec3 panelColor = glm::vec3(0.2f, 0.3f, 0.5f);
+      sphereShader.setVec3("objectColor", panelColor);
+      cubeMesh.draw();
+
+      // Render right solar panel
+      glm::mat4 rightPanelModel = glm::mat4(1.0f);
+      rightPanelModel = glm::translate(rightPanelModel, satPos);
+      rightPanelModel = glm::translate(rightPanelModel, glm::vec3(1.5e5f, 0.0f, 0.0f)); // Offset to the right
+      rightPanelModel = glm::scale(rightPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f)); // 200km x 180km x 20km (thin)
+      sphereShader.setMat4("model", rightPanelModel);
+      sphereShader.setVec3("objectColor", panelColor);
+      cubeMesh.draw();
+    }
+
+    // Render orbit paths with improved visuals (only one per orbital plane)
     glLineWidth(2.0f); // Make lines thicker
     lineShader.use();
     lineShader.setMat4("view", view);
@@ -372,6 +426,10 @@ int main()
 
     for (const auto &satellite : universe.getSatellites())
     {
+      // Only draw orbit for the first satellite in each plane to reduce clutter
+      if (!satellite->shouldDrawOrbit())
+        continue;
+
       const auto &orbitPath = satellite->getOrbitPath();
       if (orbitPath.size() >= 2)
       {
