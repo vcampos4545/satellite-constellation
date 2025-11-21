@@ -1,0 +1,47 @@
+# Build directories
+build/
+cmake-build-*/
+
+# Compiled binaries
+*.exe
+*.out
+*.app
+constelation
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Object files
+*.o
+*.obj
+*.a
+*.lib
+
+# Texture files (usually large, can be downloaded separately)
+textures/*.jpg
+textures/*.png
+textures/*.bmp
+!textures/README.md
+
+# External libraries (if downloaded)
+external/lib/
+external/bin/
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
