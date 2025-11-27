@@ -45,6 +45,14 @@ public:
   void update(double deltaTime, double maxPhysicsStep = 0.1);
 
 private:
+  // Helper method to create a satellite with orbit and footprint calculations
+  std::shared_ptr<Satellite> createSatelliteWithOrbit(
+      const glm::dvec3 &position,
+      const glm::dvec3 &velocity,
+      const glm::vec3 &color,
+      int planeId,
+      int indexInPlane);
+
   std::vector<std::shared_ptr<CelestialBody>> bodies;
   std::vector<std::shared_ptr<Satellite>> satellites;
   std::vector<std::shared_ptr<GroundStation>> groundStations;

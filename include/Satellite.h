@@ -10,10 +10,10 @@ public:
   Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0);
 
   // Update physics
-  void update(double deltaTime, const glm::dvec3 &earthPosition, double earthMass);
+  void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass);
 
   // Calculate complete orbital path (full orbit prediction)
-  void calculateFullOrbit(const glm::dvec3 &earthPosition, double earthMass, int numPoints = 100);
+  void calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMass, int numPoints = 100);
 
   // Calculate footprint circle on Earth's surface
   void calculateFootprint(const glm::dvec3 &earthCenter, int numPoints = 100);

@@ -14,6 +14,7 @@ These are simulated space based solar power satellites, beaming energy to earth 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "Constants.h"
 #include "Universe.h"
 #include "Camera.h"
 #include "Sphere.h"
@@ -209,9 +210,7 @@ int main()
 
   // Add Starlink-like LEO constellation
   universe.addStarlinkConstellation(2, 2); // 8 orbital planes, 12 satellites per plane = 96 satellites
-
   // universe.addGEOSatellite();
-
   // Add ground stations for power reception at major cities
   universe.addGroundStations();
 
@@ -247,7 +246,7 @@ int main()
   Shader sphereShader("shaders/sphere.vert", "shaders/sphere.frag");
   Shader lineShader("shaders/line.vert", "shaders/line.frag");
 
-  // Create sphere mesh for rendering (unit sphere, we'll scale it)
+  // Create sphere mesh for rendering (unit sphere)
   Sphere sphereMesh(1.0f, 30, 30);
 
   // Create cube mesh for rendering satellites
@@ -284,7 +283,6 @@ int main()
 
   // Time tracking for rotation
   float lastTime = glfwGetTime();
-  float earthRotationSpeed = 360.0f / (24.0f * 60.0f * 60.0f); // Radians per second (adjust for faster/slower rotation)
 
   // Track time for updating window title
   float lastTitleUpdateTime = lastTime;
@@ -301,10 +299,6 @@ int main()
     if (!isPaused)
     {
       float warpedDeltaTime = deltaTime * timeWarpMultiplier;
-
-      // Rotate Earth
-      universe.getEarth()->rotate(earthRotationSpeed * warpedDeltaTime);
-
       // Update orbital physics with sub-stepping (max 0.1 second physics steps)
       universe.update(warpedDeltaTime, 0.1);
     }
@@ -357,7 +351,7 @@ int main()
     // Apply base rotation to align texture with coordinate system
     // Adjust this value if cities don't line up with the texture
     // 90° rotation aligns equirectangular texture's center (0° lon) with +X axis
-    model = glm::rotate(model, glm::radians(0.0f), earth->getRotationAxis());
+    model = glm::rotate(model, glm::radians(90.0f), earth->getRotationAxis());
 
     // Apply time-based rotation for Earth's spin around its tilted axis
     model = glm::rotate(model, earth->getRotation(), earth->getRotationAxis());
@@ -457,7 +451,26 @@ int main()
       cubeMesh.draw();
     }
 
-    // Render power beams from ground stations to connected satellites
+    // Render ground stations as small dots
+    sphereShader.use();
+    sphereShader.setBool("useTexture", false);
+    for (const auto &groundStation : universe.getGroundStations())
+    {
+      glm::vec3 stationPos = glm::vec3(groundStation->getPosition());
+
+      // Small sphere for ground station (50 km radius)
+      glm::mat4 stationModel = glm::mat4(1.0f);
+      stationModel = glm::translate(stationModel, stationPos);
+      stationModel = glm::scale(stationModel, glm::vec3(5.0e4f)); // 50 km radius
+      sphereShader.setMat4("model", stationModel);
+
+      // Use bright red color for ground stations
+      glm::vec3 stationColor = glm::vec3(1.0f, 0.2f, 0.2f); // Bright red
+      sphereShader.setVec3("objectColor", stationColor);
+      sphereMesh.draw();
+    }
+
+    // Render power beams from ground stations to all visible satellites
     glLineWidth(2.0f);
     lineShader.use();
     lineShader.setMat4("view", view);
@@ -465,15 +478,13 @@ int main()
 
     for (const auto &groundStation : universe.getGroundStations())
     {
-      // Only draw beam if ground station is connected to a satellite
-      if (groundStation->isConnected())
+      // Draw beams to all visible satellites
+      for (const auto &satellite : groundStation->getVisibleSatellites())
       {
-        auto connectedSat = groundStation->getConnectedSatellite();
-
         // Draw power beam from ground station to satellite
         std::vector<glm::vec3> beamVertices;
         beamVertices.push_back(glm::vec3(groundStation->getPosition()));
-        beamVertices.push_back(glm::vec3(connectedSat->getPosition()));
+        beamVertices.push_back(glm::vec3(satellite->getPosition()));
 
         lineRenderer.setVertices(beamVertices);
 
@@ -514,8 +525,6 @@ int main()
     // Render footprint circles on Earth's surface
     for (const auto &satellite : universe.getSatellites())
     {
-      // Calculate footprint every frame
-      satellite->calculateFootprint(earth->getPosition(), 60);
       const auto &footprintCircle = satellite->getFootprintCircle();
       if (footprintCircle.size() >= 2)
       {

@@ -48,6 +48,7 @@ add_executable(constelation
     src/Satellite.cpp
     src/GroundStation.cpp
     src/LineRenderer.cpp
+    src/MathUtils.cpp
 )
 
 # Link libraries

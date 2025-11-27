@@ -1,138 +1,12 @@
 #include "Universe.h"
+#include "Constants.h"
+#include "Config.h"
+#include "MathUtils.h"
 #include "GroundStation.h"
 #include <cmath>
 #include <algorithm>
-#include <random>
 #include <iostream>
 #include <glm/gtc/matrix_transform.hpp>
-
-// Real physical constants
-const double AU = 1.496e11;           // Astronomical Unit in meters
-const double G = 6.67430e-11;         // Gravitational constant
-const double GEO_ALTITUDE = 35.786e6; // GEO altitude above Earth surface (meters)
-const double LEO_ALTITUDE = 550e3;    // Starlink altitude ~550 km
-const double PI = 3.14159265359;
-const double EARTH_MASS = 5.972e24;                                  // kg
-const double EARTH_RADIUS = 6.371e6;                                 // meters
-const double SUN_MASS = 1.989e30;                                    // kg
-const double SUN_RADIUS = 6.96e8;                                    // meters
-const double MOON_MASS = 7.342e22;                                   // kg
-const double MOON_RADIUS = 1.7371e6;                                 // meters
-const double MOON_ORBIT_RADIUS = 3.844e8;                            // meters (384,400 km from Earth)
-const double MOON_ORBITAL_PERIOD = 27.3 * 24.0 * 3600.0;             // seconds
-const double MOON_ANGULAR_VELOCITY = 2.0 * PI / MOON_ORBITAL_PERIOD; // radians per second
-
-// Structure to hold city information
-struct City
-{
-  const char *name;
-  double latitude;  // Degrees (N positive, S negative)
-  double longitude; // Degrees (E positive, W negative)
-};
-
-// Major cities around the world for ground stations
-static const City MAJOR_CITIES[] = {
-    // North America
-    {"New York, USA", 40.7128, -74.0060},
-    {"Los Angeles, USA", 34.0522, -118.2437},
-    {"Chicago, USA", 41.8781, -87.6298},
-    {"Houston, USA", 29.7604, -95.3698},
-    {"Toronto, Canada", 43.6532, -79.3832},
-    {"Mexico City, Mexico", 19.4326, -99.1332},
-
-    // South America
-    {"Sao Paulo, Brazil", -23.5505, -46.6333},
-    {"Buenos Aires, Argentina", -34.6037, -58.3816},
-    {"Lima, Peru", -12.0464, -77.0428},
-
-    // Europe
-    {"London, UK", 51.5072, -0.1276},
-    {"Paris, France", 48.8566, 2.3522},
-    {"Berlin, Germany", 52.5200, 13.4050},
-    {"Madrid, Spain", 40.4168, -3.7038},
-    {"Rome, Italy", 41.9028, 12.4964},
-    {"Moscow, Russia", 55.7558, 37.6173},
-    {"Istanbul, Turkey", 41.0082, 28.9784},
-
-    // Africa
-    {"Cairo, Egypt", 30.0444, 31.2357},
-    {"Lagos, Nigeria", 6.5244, 3.3792},
-    {"Johannesburg, South Africa", -26.2041, 28.0473},
-    {"Nairobi, Kenya", -1.2864, 36.8172},
-
-    // Asia
-    {"Tokyo, Japan", 35.6762, 139.6503},
-    {"Beijing, China", 39.9042, 116.4074},
-    {"Shanghai, China", 31.2304, 121.4737},
-    {"Mumbai, India", 19.0760, 72.8777},
-    {"Delhi, India", 28.7041, 77.1025},
-    {"Bangkok, Thailand", 13.7563, 100.5018},
-    {"Singapore", 1.3521, 103.8198},
-    {"Seoul, South Korea", 37.5665, 126.9780},
-    {"Dubai, UAE", 25.2048, 55.2708},
-
-    // Oceania
-    {"Sydney, Australia", -33.8688, 151.2093},
-    {"Melbourne, Australia", -37.8136, 144.9631},
-    {"Auckland, New Zealand", -36.8485, 174.7633},
-};
-
-// Helper function to check if a ground station is visible from a satellite position
-// Returns true if the satellite has line-of-sight to the ground station
-static bool isGroundStationVisible(const glm::dvec3 &satellitePos, const glm::dvec3 &groundStationPos, const glm::dvec3 &earthCenter)
-{
-  glm::dvec3 toEarthCenter = earthCenter - satellitePos;
-  double distToCenter = glm::length(toEarthCenter);
-  glm::dvec3 toGroundStation = groundStationPos - satellitePos;
-  double distToGroundStation = glm::length(toGroundStation);
-
-  // Calculate Horizon angle p
-  double p = glm::asin(EARTH_RADIUS / distToCenter);
-
-  // Calculate target angle n
-  double n = glm::acos(glm::dot(toEarthCenter, toGroundStation) / (distToCenter * distToGroundStation));
-
-  if (n < p && distToGroundStation < distToCenter)
-  {
-    return true;
-  }
-
-  return false;
-}
-
-// Helper function to convert latitude/longitude (in degrees) to Cartesian coordinates on Earth's surface
-static glm::dvec3 latLonToCartesian(double latitudeDeg, double longitudeDeg)
-{
-  // Convert degrees to radians
-  double latitude = latitudeDeg * PI / 180.0;
-  double longitude = longitudeDeg * PI / 180.0;
-
-  // Convert spherical coordinates to Cartesian (on Earth's surface)
-  double x = EARTH_RADIUS * cos(latitude) * cos(longitude);
-  double y = EARTH_RADIUS * sin(latitude);
-  double z = EARTH_RADIUS * cos(latitude) * sin(longitude);
-
-  return glm::dvec3(x, y, z);
-}
-
-// Helper function to generate any random position on Earth's surface (for initial assignment)
-static glm::dvec3 generateRandomEarthSurfacePosition()
-{
-  static std::random_device rd;
-  static std::mt19937 gen(rd());
-  static std::uniform_real_distribution<double> latDist(-PI / 2.0, PI / 2.0); // -90 to +90 degrees
-  static std::uniform_real_distribution<double> lonDist(0.0, 2.0 * PI);       // 0 to 360 degrees
-
-  double latitude = latDist(gen);
-  double longitude = lonDist(gen);
-
-  // Convert spherical coordinates to Cartesian (on Earth's surface)
-  double x = EARTH_RADIUS * cos(latitude) * cos(longitude);
-  double y = EARTH_RADIUS * sin(latitude);
-  double z = EARTH_RADIUS * cos(latitude) * sin(longitude);
-
-  return glm::dvec3(x, y, z);
-}
 
 Universe::Universe() : moonOrbitAngle(0.0)
 {
@@ -146,6 +20,24 @@ void Universe::addBody(std::shared_ptr<CelestialBody> body)
 void Universe::addSatellite(std::shared_ptr<Satellite> satellite)
 {
   satellites.push_back(satellite);
+}
+
+std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
+    const glm::dvec3 &position,
+    const glm::dvec3 &velocity,
+    const glm::vec3 &color,
+    int planeId,
+    int indexInPlane)
+{
+  auto satellite = std::make_shared<Satellite>(position, velocity, color, planeId, indexInPlane);
+
+  // Calculate complete orbital path
+  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), 120);
+
+  // Calculate footprint circle on Earth's surface
+  satellite->calculateFootprint(earth->getPosition(), 60);
+
+  return satellite;
 }
 
 void Universe::initializeEarthSunAndMoon()
@@ -211,17 +103,14 @@ void Universe::addGEOSatellite()
   glm::dvec3 position(orbitalRadius, 0.0, 0.0);
   glm::dvec3 velocity(0.0, 0.0, -orbitalVelocity);
 
-  // Create satellite with bright color for visibility
-  auto satellite = std::make_shared<Satellite>(
+  // Create satellite with orbit and footprint
+  auto satellite = createSatelliteWithOrbit(
       position,
       velocity,
       glm::vec3(0.3f, 0.9f, 1.0f),
       -1, // planeId (-1 for GEO satellites)
       0   // indexInPlane
   );
-
-  // Calculate complete orbital path
-  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), 120);
 
   satellites.push_back(satellite);
 }
@@ -267,8 +156,8 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
       position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
       velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
 
-      // Create satellite with bright cyan/white color for better visibility
-      auto satellite = std::make_shared<Satellite>(
+      // Create satellite with orbit and footprint
+      auto satellite = createSatelliteWithOrbit(
           position,
           velocity,
           glm::vec3(0.3f, 0.9f, 1.0f), // Bright cyan color
@@ -276,8 +165,6 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
           sat                          // indexInPlane
       );
 
-      // Calculate complete orbital path
-      satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), 120);
       satellites.push_back(satellite);
     }
   }
@@ -291,8 +178,7 @@ void Universe::addGroundStations()
   for (int i = 0; i < numCities; ++i)
   {
     const City &city = MAJOR_CITIES[i];
-    glm::dvec3 position = latLonToCartesian(city.latitude, city.longitude);
-    auto groundStation = std::make_shared<GroundStation>(position);
+    auto groundStation = std::make_shared<GroundStation>(city.name, city.latitude, city.longitude);
     groundStations.push_back(groundStation);
   }
 
@@ -301,6 +187,15 @@ void Universe::addGroundStations()
 
 void Universe::update(double deltaTime, double maxPhysicsStep)
 {
+  // Update earths rotation
+  getEarth()->rotate(EARTH_ROTATION_SPEED * deltaTime);
+
+  // Update ground station positions to rotate with Earth
+  for (auto &groundStation : groundStations)
+  {
+    groundStation->updatePosition(earth->getRotation(), earth->getRotationAxis());
+  }
+
   moonOrbitAngle += MOON_ANGULAR_VELOCITY * deltaTime;
 
   // Update moon's position (circular orbit around Earth in x-z plane)
@@ -331,45 +226,19 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     remainingTime -= stepTime;
   }
 
-  // TODO: Implement this Update ground station connections
+  // Update ground station connections
   for (auto &groundStation : groundStations)
   {
-    // Check if currently connected satellite is still visible
-    auto currentSat = groundStation->getConnectedSatellite();
-    bool needNewConnection = true;
+    // Clear previous frame's visible satellites
+    groundStation->clearVisibleSatellites();
 
-    if (currentSat)
+    // Find all visible satellites for this ground station
+    for (auto &satellite : satellites)
     {
-      // Check if current satellite is still visible
-      if (isGroundStationVisible(currentSat->getPosition(), groundStation->getPosition(), earth->getPosition()))
+      if (groundStation->isSatelliteVisible(satellite->getPosition(), earth->getPosition()))
       {
-        // Still visible, keep the connection
-        needNewConnection = false;
+        groundStation->addVisibleSatellite(satellite);
       }
-    }
-
-    if (needNewConnection)
-    {
-      // Find a new visible satellite
-      std::shared_ptr<Satellite> bestSatellite = nullptr;
-      double closestDistance = 1e20; // Very large number
-
-      for (auto &satellite : satellites)
-      {
-        if (isGroundStationVisible(satellite->getPosition(), groundStation->getPosition(), earth->getPosition()))
-        {
-          // This satellite is visible, check if it's closer than previous best
-          double distance = glm::length(satellite->getPosition() - groundStation->getPosition());
-          if (distance < closestDistance)
-          {
-            closestDistance = distance;
-            bestSatellite = satellite;
-          }
-        }
-      }
-
-      // Connect to the best (closest) visible satellite, or disconnect if none are visible
-      groundStation->setConnectedSatellite(bestSatellite);
     }
   }
 }

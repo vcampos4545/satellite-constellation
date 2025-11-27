@@ -1,20 +1,17 @@
 #include "Satellite.h"
+#include "Constants.h"
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
-
-const double G = 6.67430e-11;        // Gravitational constant (m^3 kg^-1 s^-2)
-const double EARTH_RADIUS = 6.371e6; // meters
-const double PI = 3.14159265359;
 
 Satellite::Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId, int indexInPlane)
     : position(position), velocity(velocity), color(color), planeId(planeId), indexInPlane(indexInPlane), attitude(glm::dvec3(0.0, 0.0, 0.0))
 {
 }
 
-void Satellite::update(double deltaTime, const glm::dvec3 &earthPosition, double earthMass)
+void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass)
 {
   // Calculate gravitational force from Earth
-  glm::dvec3 toEarth = earthPosition - position;
+  glm::dvec3 toEarth = earthCenter - position;
   double distance = glm::length(toEarth);
 
   if (distance < 1.0)
@@ -28,14 +25,17 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthPosition, double
   // Update velocity and position (simple Euler integration)
   velocity += acceleration * deltaTime;
   position += velocity * deltaTime;
+
+  // Update footprint every frame
+  calculateFootprint(earthCenter, 60);
 }
 
-void Satellite::calculateFullOrbit(const glm::dvec3 &earthPosition, double earthMass, int numPoints)
+void Satellite::calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMass, int numPoints)
 {
   orbitPath.clear();
 
   // Calculate orbital period using vis-viva equation
-  double distance = glm::length(position - earthPosition);
+  double distance = glm::length(position - earthCenter);
   double speed = glm::length(velocity);
 
   // For circular orbit: T = 2*pi*r/v
@@ -56,7 +56,7 @@ void Satellite::calculateFullOrbit(const glm::dvec3 &earthPosition, double earth
     orbitPath.push_back(position);
 
     // Calculate gravitational acceleration
-    glm::dvec3 toEarth = earthPosition - position;
+    glm::dvec3 toEarth = earthCenter - position;
     double dist = glm::length(toEarth);
 
     if (dist > 1.0)
@@ -85,18 +85,18 @@ void Satellite::calculateFootprint(const glm::dvec3 &earthCenter, int numPoints)
   double satelliteDistance = glm::length(toSatellite);
   glm::dvec3 nadirDir = glm::normalize(toSatellite);
 
-  // Horizon angle from nadir (in radians)
-  double lambda0 = asin(EARTH_RADIUS / satelliteDistance);
+  // Horizon angle (in radians)
+  double lambda0 = acos(EARTH_RADIUS / satelliteDistance);
 
-  // Central angle from subsatellite point to horizon point on Earth surface
-  double centralAngle = PI / 2.0 - lambda0;
+  // TODO: Decrease angle by some amount for feasible footprint (i.e. lambda0 - 5 degrees)
+  // This accounts for ground station minimum elevation angle
 
   // Find a perpendicular vector to nadirDir to start with
   glm::dvec3 perpendicular = glm::normalize(glm::cross(nadirDir, glm::dvec3(0.0, 1.0, 0.0)));
 
   // Create initial horizon point by rotating perpendicular vector around another perpendicular
   glm::dvec3 secondPerp = glm::normalize(glm::cross(nadirDir, perpendicular));
-  glm::dvec3 initialHorizonDir = nadirDir * cos(centralAngle) + secondPerp * sin(centralAngle);
+  glm::dvec3 initialHorizonDir = nadirDir * cos(lambda0) + secondPerp * sin(lambda0);
   glm::dvec3 initialHorizonPoint = earthCenter + initialHorizonDir * EARTH_RADIUS;
 
   // Rotate this initial point around the nadirDir axis to create the footprint circle
