@@ -46,6 +46,7 @@ add_executable(constelation
     src/Shader.cpp
     src/Texture.cpp
     src/Satellite.cpp
+    src/GroundStation.cpp
     src/LineRenderer.cpp
 )
 

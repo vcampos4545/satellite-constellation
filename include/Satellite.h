@@ -15,11 +15,15 @@ public:
   // Calculate complete orbital path (full orbit prediction)
   void calculateFullOrbit(const glm::dvec3 &earthPosition, double earthMass, int numPoints = 100);
 
+  // Calculate footprint circle on Earth's surface
+  void calculateFootprint(const glm::dvec3 &earthCenter, int numPoints = 100);
+
   // Getters
   glm::dvec3 getPosition() const { return position; }
   glm::dvec3 getVelocity() const { return velocity; }
   glm::vec3 getColor() const { return color; }
   const std::vector<glm::dvec3> &getOrbitPath() const { return orbitPath; }
+  const std::vector<glm::dvec3> &getFootprintCircle() const { return footprintCircle; }
   int getPlaneId() const { return planeId; }
   int getIndexInPlane() const { return indexInPlane; }
   bool shouldDrawOrbit() const { return indexInPlane == 0; } // Only draw orbit for first satellite in each plane
@@ -31,13 +35,15 @@ public:
 private:
   glm::dvec3 position; // Position in meters (x, y, z)
   glm::dvec3 velocity; // Velocity in meters/second
+  glm::dvec3 attitude; // Normalized Attitude
   glm::vec3 color;     // RGB color for rendering
 
-  std::vector<glm::dvec3> orbitPath; // Historical positions for drawing orbit
-  int orbitPathMaxSize = 1000; // Maximum number of points to store
+  std::vector<glm::dvec3> footprintCircle; // Positions for drawing footprint circle
+  std::vector<glm::dvec3> orbitPath;       // Historical positions for drawing orbit
+  int orbitPathMaxSize = 1000;             // Maximum number of points to store
 
-  int planeId;        // Orbital plane identifier
-  int indexInPlane;   // Index of this satellite within its plane
+  int planeId;      // Orbital plane identifier
+  int indexInPlane; // Index of this satellite within its plane
 };
 
 #endif // SATELLITE_H

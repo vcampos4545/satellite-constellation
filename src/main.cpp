@@ -22,26 +22,27 @@ These are simulated space based solar power satellites, beaming energy to earth 
 #include "Texture.h"
 #include "LineRenderer.h"
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH 1000
+#define SCREEN_HEIGHT 800
 
 // Input state structure
-struct InputState
+struct State
 {
   Camera *camera;
+  Universe *universe;
   bool isDragging;
   double lastMouseX;
   double lastMouseY;
   float currentTheta;
   float currentPhi;
   float *timeWarpMultiplier; // Pointer to time warp multiplier
-  bool *isPaused;             // Pointer to pause state
+  bool *isPaused;            // Pointer to pause state
 };
 
 // Mouse scroll callback for zooming
 void scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 {
-  InputState *state = static_cast<InputState *>(glfwGetWindowUserPointer(window));
+  State *state = static_cast<State *>(glfwGetWindowUserPointer(window));
   if (state && state->camera)
   {
     // Zoom speed depends on current distance
@@ -53,7 +54,7 @@ void scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 // Mouse button callback for starting/stopping pan
 void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
 {
-  InputState *state = static_cast<InputState *>(glfwGetWindowUserPointer(window));
+  State *state = static_cast<State *>(glfwGetWindowUserPointer(window));
   if (state)
   {
     if (button == GLFW_MOUSE_BUTTON_LEFT)
@@ -74,7 +75,7 @@ void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
 // Cursor position callback for panning
 void cursorPosCallback(GLFWwindow *window, double xpos, double ypos)
 {
-  InputState *state = static_cast<InputState *>(glfwGetWindowUserPointer(window));
+  State *state = static_cast<State *>(glfwGetWindowUserPointer(window));
   if (state && state->isDragging && state->camera)
   {
     // Calculate mouse delta
@@ -101,7 +102,7 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
   if (action != GLFW_PRESS)
     return;
 
-  InputState *state = static_cast<InputState *>(glfwGetWindowUserPointer(window));
+  State *state = static_cast<State *>(glfwGetWindowUserPointer(window));
   if (!state)
     return;
 
@@ -140,6 +141,11 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
   {
     *state->isPaused = !(*state->isPaused);
     std::cout << (*state->isPaused ? "PAUSED" : "RUNNING") << std::endl;
+  }
+  else if (key == GLFW_KEY_S) // TEMPORARY: Press s to focus on random satellite
+  {
+    Satellite sat = *state->universe->getSatellites()[0];
+    state->camera->setTarget(sat.getPosition());
   }
 }
 
@@ -199,12 +205,15 @@ int main()
 
   // Init simulation
   Universe universe;
-  universe.initializeEarthAndSun();
+  universe.initializeEarthSunAndMoon();
 
   // Add Starlink-like LEO constellation
-  universe.addStarlinkConstellation(8, 12); // 8 orbital planes, 12 satellites per plane = 96 satellites
+  universe.addStarlinkConstellation(2, 2); // 8 orbital planes, 12 satellites per plane = 96 satellites
 
-  universe.addGEOSatellite();
+  // universe.addGEOSatellite();
+
+  // Add ground stations for power reception at major cities
+  universe.addGroundStations();
 
   // Create camera
   Camera camera(45.0f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 1e5f, 2e11f); // Far plane extended to 200 million km to see the sun
@@ -212,22 +221,23 @@ int main()
   camera.setDistance(1.5e7f); // 15,000 km from Earth - good view of LEO constellation
 
   // Time control state
-  float timeWarpMultiplier = 1.0f;  // Start at 1x speed
+  float timeWarpMultiplier = 1.0f; // Start at 1x speed
   bool isPaused = false;
 
   // Initialize input state
-  InputState inputState;
-  inputState.camera = &camera;
-  inputState.isDragging = false;
-  inputState.lastMouseX = 0.0;
-  inputState.lastMouseY = 0.0;
-  inputState.currentTheta = 0.0f;
-  inputState.currentPhi = glm::pi<float>() / 4.0f; // Match initial camera phi
-  inputState.timeWarpMultiplier = &timeWarpMultiplier;
-  inputState.isPaused = &isPaused;
+  State state;
+  state.camera = &camera;
+  state.universe = &universe;
+  state.isDragging = false;
+  state.lastMouseX = 0.0;
+  state.lastMouseY = 0.0;
+  state.currentTheta = 0.0f;
+  state.currentPhi = glm::pi<float>() / 4.0f; // Match initial camera phi
+  state.timeWarpMultiplier = &timeWarpMultiplier;
+  state.isPaused = &isPaused;
 
   // Set up input callbacks
-  glfwSetWindowUserPointer(window, &inputState);
+  glfwSetWindowUserPointer(window, &state);
   glfwSetScrollCallback(window, scrollCallback);
   glfwSetMouseButtonCallback(window, mouseButtonCallback);
   glfwSetCursorPosCallback(window, cursorPosCallback);
@@ -254,6 +264,14 @@ int main()
     std::cout << "Note: Earth texture not found. Using solid color. Place an Earth texture at 'textures/earth.jpg'" << std::endl;
   }
 
+  // Load Moon texture
+  Texture moonTexture;
+  bool hasMoonTexture = moonTexture.load("textures/moon.jpg");
+  if (!hasMoonTexture)
+  {
+    std::cout << "Note: Moon texture not found. Using solid color. Place a Moon texture at 'textures/moon.jpg'" << std::endl;
+  }
+
   // Print controls
   std::cout << "\n=== CONTROLS ===" << std::endl;
   std::cout << "Mouse Drag: Pan camera around Earth" << std::endl;
@@ -261,11 +279,12 @@ int main()
   std::cout << "SPACE: Pause/Unpause simulation" << std::endl;
   std::cout << ". or +: Increase time warp (1x -> 10x -> 100x -> 1000x -> 10000x)" << std::endl;
   std::cout << ", or -: Decrease time warp" << std::endl;
-  std::cout << "================\n" << std::endl;
+  std::cout << "================\n"
+            << std::endl;
 
   // Time tracking for rotation
   float lastTime = glfwGetTime();
-  float earthRotationSpeed = 0.00007272205f; // Radians per second (adjust for faster/slower rotation)
+  float earthRotationSpeed = 360.0f / (24.0f * 60.0f * 60.0f); // Radians per second (adjust for faster/slower rotation)
 
   // Track time for updating window title
   float lastTitleUpdateTime = lastTime;
@@ -334,7 +353,15 @@ int main()
     auto earth = universe.getEarth();
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, glm::vec3(earth->getPosition()));
-    model = glm::rotate(model, earth->getRotation(), glm::vec3(0.0f, 1.0f, 0.0f)); // Rotate around Y axis
+
+    // Apply base rotation to align texture with coordinate system
+    // Adjust this value if cities don't line up with the texture
+    // 90° rotation aligns equirectangular texture's center (0° lon) with +X axis
+    model = glm::rotate(model, glm::radians(0.0f), earth->getRotationAxis());
+
+    // Apply time-based rotation for Earth's spin around its tilted axis
+    model = glm::rotate(model, earth->getRotation(), earth->getRotationAxis());
+
     model = glm::scale(model, glm::vec3(earth->getRadius()));
     sphereShader.setMat4("model", model);
     sphereShader.setVec3("objectColor", earth->getColor());
@@ -362,7 +389,19 @@ int main()
       moonModel = glm::scale(moonModel, glm::vec3(moon->getRadius()));
       sphereShader.setMat4("model", moonModel);
       sphereShader.setVec3("objectColor", moon->getColor());
-      sphereShader.setBool("useTexture", false);
+
+      // Use texture if available
+      if (hasMoonTexture)
+      {
+        moonTexture.bind(0);
+        sphereShader.setInt("textureSampler", 0);
+        sphereShader.setBool("useTexture", true);
+      }
+      else
+      {
+        sphereShader.setBool("useTexture", false);
+      }
+
       sphereMesh.draw();
     }
 
@@ -400,7 +439,7 @@ int main()
       glm::mat4 leftPanelModel = glm::mat4(1.0f);
       leftPanelModel = glm::translate(leftPanelModel, satPos);
       leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e5f, 0.0f, 0.0f)); // Offset to the left
-      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f)); // 200km x 180km x 20km (thin)
+      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f));  // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", leftPanelModel);
 
       // Make solar panels slightly darker (blueish tint for solar cells)
@@ -418,12 +457,34 @@ int main()
       cubeMesh.draw();
     }
 
-    // Render orbit paths with improved visuals (only one per orbital plane)
-    glLineWidth(2.0f); // Make lines thicker
+    // Render power beams from ground stations to connected satellites
+    glLineWidth(2.0f);
     lineShader.use();
     lineShader.setMat4("view", view);
     lineShader.setMat4("projection", projection);
 
+    for (const auto &groundStation : universe.getGroundStations())
+    {
+      // Only draw beam if ground station is connected to a satellite
+      if (groundStation->isConnected())
+      {
+        auto connectedSat = groundStation->getConnectedSatellite();
+
+        // Draw power beam from ground station to satellite
+        std::vector<glm::vec3> beamVertices;
+        beamVertices.push_back(glm::vec3(groundStation->getPosition()));
+        beamVertices.push_back(glm::vec3(connectedSat->getPosition()));
+
+        lineRenderer.setVertices(beamVertices);
+
+        // Use bright yellow/orange color for energy beam
+        glm::vec3 beamColor = glm::vec3(1.0f, 0.8f, 0.1f); // Bright yellow-orange
+        lineShader.setVec3("lineColor", beamColor);
+        lineRenderer.draw();
+      }
+    }
+
+    // Render orbit paths with improved visuals (only one per orbital plane)
     for (const auto &satellite : universe.getSatellites())
     {
       // Only draw orbit for the first satellite in each plane to reduce clutter
@@ -449,6 +510,52 @@ int main()
         lineRenderer.draw();
       }
     }
+
+    // Render footprint circles on Earth's surface
+    for (const auto &satellite : universe.getSatellites())
+    {
+      // Calculate footprint every frame
+      satellite->calculateFootprint(earth->getPosition(), 60);
+      const auto &footprintCircle = satellite->getFootprintCircle();
+      if (footprintCircle.size() >= 2)
+      {
+        // Convert dvec3 to vec3 for rendering
+        std::vector<glm::vec3> footprintVertices;
+        footprintVertices.reserve(footprintCircle.size());
+        for (const auto &pos : footprintCircle)
+        {
+          footprintVertices.push_back(glm::vec3(pos));
+        }
+
+        lineRenderer.setVertices(footprintVertices);
+
+        // Use a semi-transparent yellow/green color for footprint circles
+        glm::vec3 footprintColor = glm::vec3(0.8f, 1.0f, 0.3f); // Yellow-green
+        lineShader.setVec3("lineColor", footprintColor);
+        lineRenderer.draw();
+      }
+    }
+
+    // Render moon's orbit path
+    const auto &moonOrbitPath = universe.getMoonOrbitPath();
+    if (moonOrbitPath.size() >= 2)
+    {
+      // Convert dvec3 to vec3 for rendering
+      std::vector<glm::vec3> pathVertices;
+      pathVertices.reserve(moonOrbitPath.size());
+      for (const auto &pos : moonOrbitPath)
+      {
+        pathVertices.push_back(glm::vec3(pos));
+      }
+
+      lineRenderer.setVertices(pathVertices);
+
+      // Use a light gray color for moon orbit
+      glm::vec3 moonOrbitColor = glm::vec3(0.5f, 0.5f, 0.5f);
+      lineShader.setVec3("lineColor", moonOrbitColor);
+      lineRenderer.draw();
+    }
+
     glLineWidth(1.0f); // Reset line width
 
     // Swap front and back buffers
