@@ -38,6 +38,9 @@ public:
   // Initialize a Starlink-like LEO constellation
   void addStarlinkConstellation(int numPlanes = 6, int satellitesPerPlane = 10);
 
+  // Initialize a Reflect orbital-like SSO constellation
+  void addReflectConstellation(int numSatellites = 10);
+
   // Initialize ground stations for power reception at major cities
   void addGroundStations();
 
@@ -59,7 +62,7 @@ private:
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;
   std::shared_ptr<CelestialBody> moon;
-  double moonOrbitAngle; // Current angle of moon's orbit around Earth
+  double moonOrbitAngle;                 // Current angle of moon's orbit around Earth
   std::vector<glm::dvec3> moonOrbitPath; // Visualization of moon's orbit path
 };
 

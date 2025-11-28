@@ -118,7 +118,7 @@ void Universe::addGEOSatellite()
 void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
 {
   // Starlink-like parameters
-  double orbitalRadius = EARTH_RADIUS + LEO_ALTITUDE;
+  double orbitalRadius = EARTH_RADIUS + LEO_STARLINK_ALTITUDE;
   double orbitalVelocity = sqrt(G * EARTH_MASS / orbitalRadius);
   double inclination = 53.0 * PI / 180.0; // 53 degrees inclination (typical for Starlink)
 
@@ -167,6 +167,49 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
 
       satellites.push_back(satellite);
     }
+  }
+}
+
+void Universe::addReflectConstellation(int numSatellites)
+{
+  double orbitalRadius = EARTH_RADIUS + LEO_REFLECT_ALTITUDE;
+  double orbitalVelocity = sqrt(G * EARTH_MASS / orbitalRadius);
+  double inclination = 98.0 * PI / 180.0; // Sun synchronus orbit
+
+  for (int sat = 0; sat < numSatellites; ++sat)
+  {
+    double trueAnomaly = (2.0 * PI * sat) / numSatellites;
+    // Start with position in orbital plane (x-z plane, circular orbit)
+    glm::dvec3 position(
+        orbitalRadius * cos(trueAnomaly),
+        0.0,
+        orbitalRadius * sin(trueAnomaly));
+
+    // Velocity perpendicular to position (tangent to orbit)
+    glm::dvec3 velocity(
+        -orbitalVelocity * sin(trueAnomaly),
+        0.0,
+        orbitalVelocity * cos(trueAnomaly));
+
+    // Apply inclination (rotate around x-axis)
+    glm::dmat4 inclinationMatrix = glm::rotate(glm::dmat4(1.0), inclination, glm::dvec3(1.0, 0.0, 0.0));
+    position = glm::dvec3(inclinationMatrix * glm::dvec4(position, 1.0));
+    velocity = glm::dvec3(inclinationMatrix * glm::dvec4(velocity, 0.0));
+
+    // Apply RAAN (rotate around y-axis)
+    glm::dmat4 raanMatrix = glm::rotate(glm::dmat4(1.0), glm::radians(-90.0), glm::dvec3(0.0, 1.0, 0.0));
+    position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
+    velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
+
+    auto satellite = createSatelliteWithOrbit(
+        position,
+        velocity,
+        glm::vec3(0.3f, 0.9f, 1.0f), // Bright cyan color
+        0,                           // planeId
+        sat                          // indexInPlane
+    );
+
+    satellites.push_back(satellite);
   }
 }
 

@@ -210,6 +210,7 @@ int main()
 
   // Add Starlink-like LEO constellation
   universe.addStarlinkConstellation(2, 2); // 8 orbital planes, 12 satellites per plane = 96 satellites
+  universe.addReflectConstellation(10);
   // universe.addGEOSatellite();
   // Add ground stations for power reception at major cities
   universe.addGroundStations();
@@ -566,6 +567,72 @@ int main()
     }
 
     glLineWidth(1.0f); // Reset line width
+
+    // Render world axes in bottom-left corner
+    // Save current viewport
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    // Set a small viewport in the bottom-left corner (100x100 pixels)
+    int axesSize = 200;
+    glViewport(10, 10, axesSize, axesSize);
+
+    // Clear depth buffer for axes so they appear on top
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Use line shader
+    lineShader.use();
+
+    // Create a perspective projection for the axes
+    glm::mat4 axesProjection = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 10.0f);
+
+    // Create a view matrix that only rotates (no translation)
+    // Match the main camera's rotation but position axes 3 units away
+    glm::mat4 axesView = glm::lookAt(
+        glm::vec3(0.0f, 0.0f, 3.0f), // Camera position
+        glm::vec3(0.0f, 0.0f, 0.0f), // Look at origin
+        glm::vec3(0.0f, 1.0f, 0.0f)  // Up vector
+    );
+
+    // Apply the same rotation as the main camera
+    // Extract rotation from the main camera's view matrix
+    glm::mat4 cameraRotation = view;
+    cameraRotation[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f); // Remove translation
+
+    axesView = axesView * cameraRotation;
+
+    lineShader.setMat4("view", axesView);
+    lineShader.setMat4("projection", axesProjection);
+
+    // Draw X axis (red)
+    std::vector<glm::vec3> xAxis = {
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f)};
+    lineRenderer.setVertices(xAxis);
+    lineShader.setVec3("lineColor", glm::vec3(1.0f, 0.0f, 0.0f)); // Red
+    glLineWidth(3.0f);
+    lineRenderer.draw();
+
+    // Draw Y axis (green)
+    std::vector<glm::vec3> yAxis = {
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.0f, 0.0f)};
+    lineRenderer.setVertices(yAxis);
+    lineShader.setVec3("lineColor", glm::vec3(0.0f, 1.0f, 0.0f)); // Green
+    lineRenderer.draw();
+
+    // Draw Z axis (blue)
+    std::vector<glm::vec3> zAxis = {
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 0.0f, 1.0f)};
+    lineRenderer.setVertices(zAxis);
+    lineShader.setVec3("lineColor", glm::vec3(0.0f, 0.0f, 1.0f)); // Blue
+    lineRenderer.draw();
+
+    glLineWidth(1.0f);
+
+    // Restore original viewport
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
     // Swap front and back buffers
     glfwSwapBuffers(window);
