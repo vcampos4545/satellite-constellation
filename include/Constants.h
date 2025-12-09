@@ -29,4 +29,21 @@ const double MOON_ANGULAR_VELOCITY = 2.0 * PI / MOON_ORBITAL_PERIOD; // radians 
 const double GEO_ALTITUDE = 35.786e6; // GEO altitude above Earth surface (meters)
 const double LEO_ALTITUDE = 550e3;    // Starlink altitude ~550 km
 
+// Molniya orbit parameters (highly elliptical orbit for high latitude coverage)
+const double MOLNIYA_SEMI_MAJOR_AXIS = 26.6e6;     // Semi-major axis (meters from Earth center)
+const double MOLNIYA_ECCENTRICITY = 0.72;          // Eccentricity (highly elliptical)
+const double MOLNIYA_INCLINATION = 63.4;           // Inclination (degrees) - critical angle
+const double MOLNIYA_APOGEE_ALTITUDE = 39.8e6;     // Apogee altitude above surface (~40,000 km)
+const double MOLNIYA_PERIGEE_ALTITUDE = 500e3;     // Perigee altitude above surface (~500 km)
+
+// Atmospheric constants (exponential atmosphere model)
+const double RHO_0 = 1.225;         // Sea level atmospheric density (kg/m^3)
+const double H_SCALE = 8500.0;      // Scale height for exponential atmosphere (meters)
+const double DRAG_ALTITUDE_MAX = 1000e3; // Maximum altitude where drag is significant (1000 km)
+
+// Solar radiation pressure constants
+const double SOLAR_FLUX = 1367.0;   // Solar constant at 1 AU (W/m^2)
+const double SPEED_OF_LIGHT = 299792458.0; // Speed of light (m/s)
+const double SOLAR_PRESSURE = SOLAR_FLUX / SPEED_OF_LIGHT; // Pressure at 1 AU (N/m^2)
+
 #endif // CONSTANTS_H

@@ -206,13 +206,6 @@ int main()
 
   // Init simulation
   Universe universe;
-  universe.initializeEarthSunAndMoon();
-
-  // Add Starlink-like LEO constellation
-  universe.addStarlinkConstellation(2, 2); // 8 orbital planes, 12 satellites per plane = 96 satellites
-  // universe.addGEOSatellite();
-  // Add ground stations for power reception at major cities
-  universe.addGroundStations();
 
   // Create camera
   Camera camera(45.0f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 1e5f, 2e11f); // Far plane extended to 200 million km to see the sun

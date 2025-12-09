@@ -10,6 +10,18 @@
 
 Universe::Universe() : moonOrbitAngle(0.0)
 {
+  /* CUSTOMIZE SIMULATION HERE */
+
+  initializeEarthSunAndMoon();
+
+  // Add Starlink-like LEO constellation
+  addStarlinkConstellation(2, 2); // 2 orbital planes, 2 satellites per plane = 4 satellites
+
+  // Add Molniya constellation (highly elliptical orbit for high latitude coverage)
+  addMolniyaConstellation(3); // 3 satellites for continuous coverage
+
+  // Add ground stations for power reception at major cities
+  addGroundStations();
 }
 
 void Universe::addBody(std::shared_ptr<CelestialBody> body)
@@ -32,7 +44,7 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
   auto satellite = std::make_shared<Satellite>(position, velocity, color, planeId, indexInPlane);
 
   // Calculate complete orbital path
-  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), 120);
+  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), sun->getPosition(), 120);
 
   // Calculate footprint circle on Earth's surface
   satellite->calculateFootprint(earth->getPosition(), 60);
@@ -170,6 +182,87 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
   }
 }
 
+void Universe::addMolniyaConstellation(int numSatellites)
+{
+  // Molniya orbit parameters
+  double semiMajorAxis = MOLNIYA_SEMI_MAJOR_AXIS;
+  double eccentricity = MOLNIYA_ECCENTRICITY;
+  double inclination = glm::radians(MOLNIYA_INCLINATION); // Convert to radians
+
+  // Argument of perigee: 270° (apogee over northern hemisphere)
+  double argOfPerigee = 270.0 * PI / 180.0;
+
+  // For a typical Molniya constellation, satellites are evenly spaced in their orbits
+  // with 8-hour phase separation (since period is ~12 hours, 3 satellites give continuous coverage)
+  for (int sat = 0; sat < numSatellites; ++sat)
+  {
+    // Right ascension of ascending node - evenly distribute satellites
+    double raan = (2.0 * PI * sat) / numSatellites;
+
+    // Start all satellites at apogee for maximum dwell time visualization
+    // True anomaly at apogee: 90° relative to argument of perigee
+    double trueAnomaly = 90.0 * PI / 180.0;
+
+    // Calculate position and velocity in orbital plane using orbital mechanics
+    // r = a(1 - e²) / (1 + e*cos(ν))
+    double radius = semiMajorAxis * (1.0 - eccentricity * eccentricity) /
+                    (1.0 + eccentricity * cos(trueAnomaly));
+
+    // Position in perifocal coordinates (orbital plane with perigee on x-axis)
+    glm::dvec3 positionPerifocal(
+        radius * cos(trueAnomaly),
+        radius * sin(trueAnomaly),
+        0.0);
+
+    // Velocity in perifocal coordinates
+    // v = sqrt(μ/p) where p = a(1-e²)
+    double p = semiMajorAxis * (1.0 - eccentricity * eccentricity);
+    double mu = G * EARTH_MASS;
+    double velocityMagnitude = sqrt(mu / p);
+
+    glm::dvec3 velocityPerifocal(
+        -velocityMagnitude * sin(trueAnomaly),
+        velocityMagnitude * (eccentricity + cos(trueAnomaly)),
+        0.0);
+
+    // Transform from perifocal to inertial frame
+    // Use the same rotation sequence as Starlink for consistency
+    // Perifocal frame has orbit in X-Y plane initially
+
+    // Rotate perifocal coordinates to start in X-Z plane (matching Starlink convention)
+    glm::dvec3 position(positionPerifocal.x, 0.0, positionPerifocal.y);
+    glm::dvec3 velocity(velocityPerifocal.x, 0.0, velocityPerifocal.y);
+
+    // 1. Rotate by argument of perigee around y-axis
+    glm::dmat4 argPerigeeMatrix = glm::rotate(glm::dmat4(1.0), argOfPerigee, glm::dvec3(0.0, 1.0, 0.0));
+    position = glm::dvec3(argPerigeeMatrix * glm::dvec4(position, 1.0));
+    velocity = glm::dvec3(argPerigeeMatrix * glm::dvec4(velocity, 0.0));
+
+    // 2. Rotate by inclination around x-axis (same as Starlink)
+    glm::dmat4 inclinationMatrix = glm::rotate(glm::dmat4(1.0), inclination, glm::dvec3(1.0, 0.0, 0.0));
+    position = glm::dvec3(inclinationMatrix * glm::dvec4(position, 1.0));
+    velocity = glm::dvec3(inclinationMatrix * glm::dvec4(velocity, 0.0));
+
+    // 3. Rotate by RAAN around y-axis (same as Starlink)
+    glm::dmat4 raanMatrix = glm::rotate(glm::dmat4(1.0), raan, glm::dvec3(0.0, 1.0, 0.0));
+    position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
+    velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
+
+    // Create satellite with orbit and footprint
+    auto satellite = createSatelliteWithOrbit(
+        position,
+        velocity,
+        glm::vec3(1.0f, 0.5f, 0.2f), // Orange/red color for Molniya
+        -2,                          // planeId (-2 for Molniya satellites)
+        sat                          // indexInPlane
+    );
+
+    satellites.push_back(satellite);
+  }
+
+  std::cout << "Added Molniya constellation with " << numSatellites << " satellites" << std::endl;
+}
+
 void Universe::addGroundStations()
 {
   // Add ground stations at major city locations
@@ -220,7 +313,7 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     // Update all satellites with this smaller step
     for (auto &satellite : satellites)
     {
-      satellite->update(stepTime, earth->getPosition(), earth->getMass());
+      satellite->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition());
     }
 
     remainingTime -= stepTime;

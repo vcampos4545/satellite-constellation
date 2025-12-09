@@ -38,6 +38,9 @@ public:
   // Initialize a Starlink-like LEO constellation
   void addStarlinkConstellation(int numPlanes = 6, int satellitesPerPlane = 10);
 
+  // Initialize a Molniya constellation (highly elliptical orbit for high latitude coverage)
+  void addMolniyaConstellation(int numSatellites = 3);
+
   // Initialize ground stations for power reception at major cities
   void addGroundStations();
 
