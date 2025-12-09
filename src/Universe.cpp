@@ -44,7 +44,7 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
   auto satellite = std::make_shared<Satellite>(position, velocity, color, planeId, indexInPlane);
 
   // Calculate complete orbital path
-  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), sun->getPosition(), 120);
+  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition(), 120);
 
   // Calculate footprint circle on Earth's surface
   satellite->calculateFootprint(earth->getPosition(), 60);
@@ -313,7 +313,7 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     // Update all satellites with this smaller step
     for (auto &satellite : satellites)
     {
-      satellite->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition());
+      satellite->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition());
     }
 
     remainingTime -= stepTime;

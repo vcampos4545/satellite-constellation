@@ -10,10 +10,10 @@ public:
   Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0);
 
   // Update physics
-  void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition);
+  void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
 
   // Calculate complete orbital path (full orbit prediction)
-  void calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, int numPoints = 100);
+  void calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition, int numPoints = 100);
 
   // Calculate footprint circle on Earth's surface
   void calculateFootprint(const glm::dvec3 &earthCenter, int numPoints = 100);
@@ -44,8 +44,12 @@ public:
   void addToOrbitPath(const glm::dvec3 &pos) { orbitPath.push_back(pos); }
 
 private:
-  // Helper function to calculate total acceleration
-  glm::dvec3 calculateAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPos) const;
+  // Helper functions for acceleration calculations
+  glm::dvec3 calculateAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPos, const glm::dvec3 &moonPos) const;
+
+  glm::dvec3 calculateGravitationalAcceleration(const glm::dvec3 &pos, const glm::dvec3 &bodyPos, double bodyMass) const;
+  glm::dvec3 calculateDragAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter) const;
+  glm::dvec3 calculateSolarRadiationPressure(const glm::dvec3 &pos, const glm::dvec3 &sunPos, const glm::dvec3 &earthCenter) const;
 
   glm::dvec3 position; // Position in meters (x, y, z)
   glm::dvec3 velocity; // Velocity in meters/second
