@@ -9,9 +9,10 @@ Satellite::Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, con
       color(color),
       planeId(planeId),
       indexInPlane(indexInPlane),
-      quaternion(1.0, 0.0, 0.0, 0.0),  // Identity quaternion (no rotation)
-      angularVelocity(0.0, 0.0, 0.0)   // No initial rotation
+      quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion (no rotation)
+      angularVelocity(0.0, 0.0, 0.0)  // No initial rotation
 {
+  autoTunePID();
 }
 
 glm::dvec3 Satellite::calculateGravitationalAcceleration(const glm::dvec3 &pos, const glm::dvec3 &bodyPos, double bodyMass) const
@@ -124,23 +125,23 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
 
   // k2 = f(t + dt/2, y + k1*dt/2)
   glm::dvec3 k2_vel = calculateAcceleration(
-    position + k1_pos * (deltaTime * 0.5),
-    velocity + k1_vel * (deltaTime * 0.5),
-    earthCenter, earthMass, sunPosition, moonPosition);
+      position + k1_pos * (deltaTime * 0.5),
+      velocity + k1_vel * (deltaTime * 0.5),
+      earthCenter, earthMass, sunPosition, moonPosition);
   glm::dvec3 k2_pos = velocity + k1_vel * (deltaTime * 0.5);
 
   // k3 = f(t + dt/2, y + k2*dt/2)
   glm::dvec3 k3_vel = calculateAcceleration(
-    position + k2_pos * (deltaTime * 0.5),
-    velocity + k2_vel * (deltaTime * 0.5),
-    earthCenter, earthMass, sunPosition, moonPosition);
+      position + k2_pos * (deltaTime * 0.5),
+      velocity + k2_vel * (deltaTime * 0.5),
+      earthCenter, earthMass, sunPosition, moonPosition);
   glm::dvec3 k3_pos = velocity + k2_vel * (deltaTime * 0.5);
 
   // k4 = f(t + dt, y + k3*dt)
   glm::dvec3 k4_vel = calculateAcceleration(
-    position + k3_pos * deltaTime,
-    velocity + k3_vel * deltaTime,
-    earthCenter, earthMass, sunPosition, moonPosition);
+      position + k3_pos * deltaTime,
+      velocity + k3_vel * deltaTime,
+      earthCenter, earthMass, sunPosition, moonPosition);
   glm::dvec3 k4_pos = velocity + k3_vel * deltaTime;
 
   // Update: y_new = y + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
@@ -157,8 +158,8 @@ void Satellite::calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMa
 
   // Calculate orbital period using Kepler's third law
   // Need to determine semi-major axis from current state using vis-viva equation
-  double r = glm::length(position - earthCenter);  // Current distance
-  double v = glm::length(velocity);                // Current speed
+  double r = glm::length(position - earthCenter); // Current distance
+  double v = glm::length(velocity);               // Current speed
   double mu = G * earthMass;
 
   // Specific orbital energy: ε = v²/2 - μ/r
@@ -166,11 +167,11 @@ void Satellite::calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMa
 
   // Semi-major axis from energy: a = -μ/(2ε)
   double semiMajorAxis;
-  if (specificEnergy < 0.0)  // Bound orbit (elliptical)
+  if (specificEnergy < 0.0) // Bound orbit (elliptical)
   {
     semiMajorAxis = -mu / (2.0 * specificEnergy);
   }
-  else  // Parabolic or hyperbolic - use current radius as approximation
+  else // Parabolic or hyperbolic - use current radius as approximation
   {
     semiMajorAxis = r;
   }

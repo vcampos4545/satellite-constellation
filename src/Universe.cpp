@@ -19,7 +19,7 @@ Universe::Universe() : moonOrbitAngle(0.0)
   addStarlinkConstellation(8, 1); // 2 orbital planes, 2 satellites per plane = 4 satellites
 
   // Add Molniya constellation (highly elliptical orbit for high latitude coverage)
-  addMolniyaConstellation(3); // 3 satellites for continuous coverage
+  // addMolniyaConstellation(3); // 3 satellites for continuous coverage
 
   // Add ground stations for power reception at major cities
   addGroundStations();

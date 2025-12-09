@@ -149,47 +149,47 @@ private:
   glm::vec3 color;     // RGB color for rendering
 
   // Attitude state (orientation in space)
-  glm::dquat quaternion;           // Attitude quaternion (body frame to inertial frame)
-  glm::dvec3 angularVelocity;      // Angular velocity in rad/s (body frame)
+  glm::dquat quaternion;      // Attitude quaternion (body frame to inertial frame)
+  glm::dvec3 angularVelocity; // Angular velocity in rad/s (body frame)
 
   // Physical properties
-  double mass = 260.0;                  // Satellite mass in kg (typical for Starlink)
-  double dragCoefficient = 2.2;         // Drag coefficient (dimensionless, ~2.2 for satellites)
-  double crossSectionalArea = 10.0;     // Cross-sectional area in m^2
-  double reflectivity = 1.3;            // Reflectivity coefficient (1.0 = absorbing, 2.0 = perfect mirror)
+  double mass = 260.0;              // Satellite mass in kg (typical for Starlink)
+  double dragCoefficient = 2.2;     // Drag coefficient (dimensionless, ~2.2 for satellites)
+  double crossSectionalArea = 10.0; // Cross-sectional area in m^2
+  double reflectivity = 1.3;        // Reflectivity coefficient (1.0 = absorbing, 2.0 = perfect mirror)
 
   // Moments of inertia (kg·m²) - assuming box-shaped satellite
   glm::dvec3 inertiaTensor = glm::dvec3(50.0, 50.0, 20.0); // Ixx, Iyy, Izz
 
   // Reaction wheel properties
   bool hasReactionWheels = false;
-  double reactionWheelMaxTorque = 0.1;      // Maximum torque per wheel (N·m)
-  double reactionWheelMaxMomentum = 10.0;   // Maximum momentum per wheel (N·m·s)
+  double reactionWheelMaxTorque = 0.1;                // Maximum torque per wheel (N·m)
+  double reactionWheelMaxMomentum = 10.0;             // Maximum momentum per wheel (N·m·s)
   glm::dvec3 reactionWheelMomentum = glm::dvec3(0.0); // Current stored momentum (body frame)
 
   // Magnetorquer properties
   bool hasMagnetorquers = false;
-  double magnetorquerMaxDipole = 10.0;      // Maximum magnetic dipole moment (A·m²)
+  double magnetorquerMaxDipole = 10.0; // Maximum magnetic dipole moment (A·m²)
 
   // Control Moment Gyroscope (CMG) properties
   bool hasCMGs = false;
-  int numCMGs = 4;                          // Number of CMGs (typically 4 for pyramid config)
-  double cmgMomentum = 50.0;                // Momentum per CMG (N·m·s)
-  double cmgMaxGimbalRate = 0.1;            // Maximum gimbal rate (rad/s)
+  int numCMGs = 4;               // Number of CMGs (typically 4 for pyramid config)
+  double cmgMomentum = 50.0;     // Momentum per CMG (N·m·s)
+  double cmgMaxGimbalRate = 0.1; // Maximum gimbal rate (rad/s)
 
   // Attitude control state
   AttitudeControlMode controlMode = AttitudeControlMode::NONE;
   glm::dquat targetQuaternion = glm::dquat(1.0, 0.0, 0.0, 0.0); // Target orientation (identity)
-  glm::dvec3 targetPoint = glm::dvec3(0.0);                      // Target point for tracking mode
+  glm::dvec3 targetPoint = glm::dvec3(0.0);                     // Target point for tracking mode
 
   // PID controller gains (tuned for typical small satellite with I ~ 50 kg·m²)
-  double proportionalGain = 0.05;   // Proportional gain for attitude error (N·m/rad)
-  double integralGain = 0.001;      // Integral gain for steady-state error elimination (N·m/(rad·s))
-  double derivativeGain = 0.5;      // Derivative gain for damping (N·m·s/rad)
+  double proportionalGain = 0.07; // Proportional gain for attitude error (N·m/rad)
+  double integralGain = 0.0;      // Integral gain for steady-state error elimination (N·m/(rad·s))
+  double derivativeGain = 0.5;    // Derivative gain for damping (N·m·s/rad)
 
   // Integral error accumulation
-  glm::dvec3 integralError = glm::dvec3(0.0);     // Accumulated attitude error
-  double integralErrorMax = 10.0;                  // Anti-windup limit (rad)
+  glm::dvec3 integralError = glm::dvec3(0.0); // Accumulated attitude error
+  double integralErrorMax = 10.0;             // Anti-windup limit (rad)
 
   std::vector<glm::dvec3> footprintCircle; // Positions for drawing footprint circle
   std::vector<glm::dvec3> orbitPath;       // Historical positions for drawing orbit
