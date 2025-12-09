@@ -415,17 +415,25 @@ int main()
       glm::vec3 brightColor = satellite->getColor() * 1.5f; // Make satellites brighter
       sphereShader.setVec3("objectColor", brightColor);
 
+      // Get satellite attitude (quaternion -> rotation matrix)
+      glm::quat attitudeQuat = glm::quat(satellite->getQuaternion()); // Convert dquat to quat
+      glm::mat4 attitudeMatrix = glm::mat4_cast(attitudeQuat);
+
       // Render central body (elongated box)
+      // Apply: Translation -> Rotation (attitude) -> Scale
       glm::mat4 bodyModel = glm::mat4(1.0f);
       bodyModel = glm::translate(bodyModel, satPos);
+      bodyModel = bodyModel * attitudeMatrix; // Apply attitude rotation
       bodyModel = glm::scale(bodyModel, glm::vec3(8.0e4f, 1.2e5f, 8.0e4f)); // 80km x 120km x 80km
       sphereShader.setMat4("model", bodyModel);
       cubeMesh.draw();
 
       // Render left solar panel (thin flat box)
+      // Solar panels extend along X-axis in body frame
       glm::mat4 leftPanelModel = glm::mat4(1.0f);
       leftPanelModel = glm::translate(leftPanelModel, satPos);
-      leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e5f, 0.0f, 0.0f)); // Offset to the left
+      leftPanelModel = leftPanelModel * attitudeMatrix; // Apply attitude rotation
+      leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e5f, 0.0f, 0.0f)); // Offset to the left (in body frame)
       leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f));  // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", leftPanelModel);
 
@@ -437,7 +445,8 @@ int main()
       // Render right solar panel
       glm::mat4 rightPanelModel = glm::mat4(1.0f);
       rightPanelModel = glm::translate(rightPanelModel, satPos);
-      rightPanelModel = glm::translate(rightPanelModel, glm::vec3(1.5e5f, 0.0f, 0.0f)); // Offset to the right
+      rightPanelModel = rightPanelModel * attitudeMatrix; // Apply attitude rotation
+      rightPanelModel = glm::translate(rightPanelModel, glm::vec3(1.5e5f, 0.0f, 0.0f)); // Offset to the right (in body frame)
       rightPanelModel = glm::scale(rightPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f)); // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", rightPanelModel);
       sphereShader.setVec3("objectColor", panelColor);
@@ -537,6 +546,32 @@ int main()
         lineRenderer.draw();
       }
     }
+
+    // Render satellite attitude vectors (pointing direction)
+    glLineWidth(3.0f); // Thicker line for attitude arrow
+    for (const auto &satellite : universe.getSatellites())
+    {
+      // Get satellite position and pointing direction (Z-axis in body frame)
+      glm::dvec3 satPos = satellite->getPosition();
+      glm::dvec3 zAxis = satellite->getBodyZAxis();
+
+      // Scale arrow to be visible (e.g., 500 km long)
+      double arrowLength = 500e3; // 500 km
+      glm::dvec3 arrowEnd = satPos + zAxis * arrowLength;
+
+      // Create arrow vertices
+      std::vector<glm::vec3> attitudeArrow = {
+          glm::vec3(satPos),
+          glm::vec3(arrowEnd)};
+
+      lineRenderer.setVertices(attitudeArrow);
+
+      // Use bright red for attitude vector
+      glm::vec3 attitudeColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red
+      lineShader.setVec3("lineColor", attitudeColor);
+      lineRenderer.draw();
+    }
+    glLineWidth(2.0f); // Reset to normal line width
 
     // Render moon's orbit path
     const auto &moonOrbitPath = universe.getMoonOrbitPath();

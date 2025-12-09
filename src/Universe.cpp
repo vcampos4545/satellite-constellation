@@ -6,6 +6,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+#include <limits>
 #include <glm/gtc/matrix_transform.hpp>
 
 Universe::Universe() : moonOrbitAngle(0.0)
@@ -15,10 +16,10 @@ Universe::Universe() : moonOrbitAngle(0.0)
   initializeEarthSunAndMoon();
 
   // Add Starlink-like LEO constellation
-  addStarlinkConstellation(2, 2); // 2 orbital planes, 2 satellites per plane = 4 satellites
+  addStarlinkConstellation(1, 2); // 2 orbital planes, 2 satellites per plane = 4 satellites
 
   // Add Molniya constellation (highly elliptical orbit for high latitude coverage)
-  addMolniyaConstellation(3); // 3 satellites for continuous coverage
+  // addMolniyaConstellation(3); // 3 satellites for continuous coverage
 
   // Add ground stations for power reception at major cities
   addGroundStations();
@@ -42,6 +43,10 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
     int indexInPlane)
 {
   auto satellite = std::make_shared<Satellite>(position, velocity, color, planeId, indexInPlane);
+
+  // Enable ADCS with reaction wheels
+  satellite->enableReactionWheels(true);
+  satellite->setControlMode(AttitudeControlMode::TARGET_TRACKING);
 
   // Calculate complete orbital path
   satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition(), 120);
@@ -313,6 +318,29 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     // Update all satellites with this smaller step
     for (auto &satellite : satellites)
     {
+      // Find closest ground station for target tracking
+      if (!groundStations.empty())
+      {
+        double minDistance = std::numeric_limits<double>::max();
+        glm::dvec3 closestStationPos;
+
+        for (const auto &station : groundStations)
+        {
+          glm::dvec3 stationPos = station->getPosition();
+          double distance = glm::length(satellite->getPosition() - stationPos);
+
+          if (distance < minDistance)
+          {
+            minDistance = distance;
+            closestStationPos = stationPos;
+          }
+        }
+
+        // Update satellite's tracking target
+        satellite->updateTargetTracking(closestStationPos);
+      }
+
+      // Update satellite (handles both ADCS and orbital dynamics internally)
       satellite->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition());
     }
 
