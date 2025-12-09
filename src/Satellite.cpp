@@ -111,9 +111,7 @@ glm::dvec3 Satellite::calculateAcceleration(const glm::dvec3 &pos, const glm::dv
 
 void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition)
 {
-  // ========== ATTITUDE CONTROL SYSTEM ==========
-  // Run ADCS control loop (attitude determination and control)
-  adcsControlLoop(deltaTime, earthCenter, sunPosition);
+  /* Main satellite update function.  Runs every frame */
 
   // ========== ORBITAL DYNAMICS ==========
   // RK4 (Runge-Kutta 4th order) integration for better accuracy
@@ -147,6 +145,10 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
   // Update: y_new = y + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
   velocity += (deltaTime / 6.0) * (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel);
   position += (deltaTime / 6.0) * (k1_pos + 2.0 * k2_pos + 2.0 * k3_pos + k4_pos);
+
+  // ========== ATTITUDE CONTROL SYSTEM ==========
+  // Run ADCS control loop (attitude determination and control)
+  adcsControlLoop(deltaTime, earthCenter, sunPosition);
 
   // Update footprint every frame
   calculateFootprint(earthCenter, 60);
@@ -431,6 +433,22 @@ glm::dvec3 Satellite::computeAttitudeError(const glm::dquat &currentAttitude, co
 
 glm::dvec3 Satellite::computeControlTorque(const glm::dvec3 &attitudeError, double deltaTime)
 {
+  // Dispatch to appropriate control algorithm
+  switch (controlAlgorithm)
+  {
+  case ControlAlgorithm::PID:
+    return computeControlTorquePID(attitudeError, deltaTime);
+  case ControlAlgorithm::LQR:
+    return computeControlTorqueLQR(attitudeError, deltaTime);
+  case ControlAlgorithm::MPC:
+    return computeControlTorqueMPC(attitudeError, deltaTime);
+  default:
+    return computeControlTorquePID(attitudeError, deltaTime);
+  }
+}
+
+glm::dvec3 Satellite::computeControlTorquePID(const glm::dvec3 &attitudeError, double deltaTime)
+{
   // ===== PID CONTROLLER =====
   // Compute control torque: τ = Kp*e + Ki*∫e + Kd*de/dt
   // For attitude control: de/dt ≈ -ω (in body frame)
@@ -471,6 +489,82 @@ glm::dvec3 Satellite::computeControlTorque(const glm::dvec3 &attitudeError, doub
   glm::dvec3 controlTorque = proportionalTerm + integralTerm + derivativeTerm;
 
   // Apply torque limits to prevent excessive control authority
+  double torqueMagnitude = glm::length(controlTorque);
+  double maxTorque = reactionWheelMaxTorque * 3.0; // 3 wheels working together
+  if (torqueMagnitude > maxTorque)
+  {
+    controlTorque = (maxTorque / torqueMagnitude) * controlTorque;
+  }
+
+  return controlTorque;
+}
+
+glm::dvec3 Satellite::computeControlTorqueLQR(const glm::dvec3 &attitudeError, double deltaTime)
+{
+  // ===== LQR CONTROLLER =====
+  // Linear Quadratic Regulator for optimal control
+  // Minimizes cost function: J = integral(x'Qx + u'Ru)dt
+  // Control law: u = -K*x where K is LQR gain matrix
+  //
+  // Simplified implementation using approximate discrete-time LQR
+  // State vector: x = [attitude_error; angular_velocity]
+
+  // Compute LQR gain matrix K using simplified Riccati approximation
+  // For diagonal Q and R matrices, simplified gain:
+  // K ≈ [sqrt(Q_att/R); sqrt(Q_omega/R)]
+
+  // Get average weighting values
+  double Q_att = (lqrQ[0][0] + lqrQ[1][1] + lqrQ[2][2]) / 3.0;
+  double Q_omega = Q_att * 0.1; // Angular velocity cost (typically lower)
+  double R = (lqrR[0][0] + lqrR[1][1] + lqrR[2][2]) / 3.0;
+  double I_avg = (inertiaTensor.x + inertiaTensor.y + inertiaTensor.z) / 3.0;
+
+  // Compute simplified LQR gains
+  double K_att = sqrt(Q_att * I_avg / R);    // Gain for attitude error
+  double K_omega = sqrt(Q_omega * I_avg / R); // Gain for angular velocity
+
+  // LQR control law: τ = -K_att * e_att - K_omega * ω
+  glm::dvec3 controlTorque = -K_att * attitudeError - K_omega * angularVelocity;
+
+  // Apply torque limits
+  double torqueMagnitude = glm::length(controlTorque);
+  double maxTorque = reactionWheelMaxTorque * 3.0; // 3 wheels working together
+  if (torqueMagnitude > maxTorque)
+  {
+    controlTorque = (maxTorque / torqueMagnitude) * controlTorque;
+  }
+
+  return controlTorque;
+}
+
+glm::dvec3 Satellite::computeControlTorqueMPC(const glm::dvec3 &attitudeError, double deltaTime)
+{
+  // ===== MODEL PREDICTIVE CONTROLLER =====
+  // Solves optimization problem over prediction horizon
+  // Minimizes: sum(||x(k)||_Q^2 + ||u(k)||_R^2) over k=0..N
+  // Subject to: dynamics constraints and actuator limits
+  //
+  // Simplified single-step MPC (horizon = 1) for computational efficiency
+  // Full MPC would require quadratic programming solver
+
+  // Get average weighting values
+  double Q_att = (mpcQ[0][0] + mpcQ[1][1] + mpcQ[2][2]) / 3.0;
+  double Q_omega = Q_att * 0.1;
+  double R = (mpcR[0][0] + mpcR[1][1] + mpcR[2][2]) / 3.0;
+  double I_avg = (inertiaTensor.x + inertiaTensor.y + inertiaTensor.z) / 3.0;
+
+  // Predict next state if no control is applied
+  glm::dvec3 predictedError = attitudeError + angularVelocity * mpcTimestep;
+  glm::dvec3 angularMom = inertiaTensor * angularVelocity;
+  glm::dvec3 gyroTorque = glm::cross(angularVelocity, angularMom);
+  glm::dvec3 predictedOmega = angularVelocity - (gyroTorque / inertiaTensor) * mpcTimestep;
+
+  // Compute control that minimizes predicted cost
+  // Simplified solution: τ = -(Q*e_predicted + R*ω_predicted) / (R + dt^2*I^-1)
+  double gain = 1.0 / (R / Q_att + mpcTimestep * mpcTimestep / I_avg);
+  glm::dvec3 controlTorque = -gain * (Q_att * predictedError + Q_omega * predictedOmega);
+
+  // Apply torque limits
   double torqueMagnitude = glm::length(controlTorque);
   double maxTorque = reactionWheelMaxTorque * 3.0; // 3 wheels working together
   if (torqueMagnitude > maxTorque)
@@ -555,30 +649,69 @@ void Satellite::commandCMGs(const glm::dvec3 &desiredTorque, double deltaTime)
 void Satellite::propagateAttitudeDynamics(double deltaTime, const glm::dvec3 &externalTorque)
 {
   // ===== ATTITUDE DYNAMICS INTEGRATION =====
-  // Integrate Euler's rigid body equations:
+  // Integrate Euler's rigid body equations using RK4:
   //   I*dω/dt = τ_external - ω × (I*ω)   (rotational dynamics)
   //   dq/dt = 0.5 * Ω(ω) * q             (quaternion kinematics)
 
-  // External torques (gravity gradient, magnetic, solar pressure, etc.)
-  glm::dvec3 totalTorque = externalTorque;
+  // Lambda function to compute angular acceleration from state
+  auto computeAngularAccel = [this, &externalTorque](const glm::dvec3 &omega) -> glm::dvec3 {
+    glm::dvec3 angularMom = inertiaTensor * omega;
+    glm::dvec3 gyroTorque = glm::cross(omega, angularMom);
+    return (externalTorque - gyroTorque) / inertiaTensor;
+  };
 
-  // Euler's equation: I*α = τ - ω × (I*ω)
-  glm::dvec3 angularMomentum = inertiaTensor * angularVelocity;
-  glm::dvec3 gyroscopicTorque = glm::cross(angularVelocity, angularMomentum);
-  glm::dvec3 angularAcceleration = (totalTorque - gyroscopicTorque) / inertiaTensor;
+  // Lambda function to compute quaternion derivative
+  auto computeQuatDot = [](const glm::dquat &q, const glm::dvec3 &omega) -> glm::dquat {
+    glm::dquat omegaQuat(0.0, omega.x, omega.y, omega.z);
+    return 0.5 * omegaQuat * q;
+  };
 
-  // Update angular velocity (Euler integration - could use RK4 for better accuracy)
-  angularVelocity += angularAcceleration * deltaTime;
+  // RK4 Integration for angular velocity and quaternion
 
-  // Update quaternion using angular velocity
-  // dq/dt = 0.5 * [0, ω] * q
-  glm::dquat omegaQuat(0.0, angularVelocity.x, angularVelocity.y, angularVelocity.z);
-  glm::dquat quaternionDot = 0.5 * omegaQuat * quaternion;
+  // k1 = f(t, y)
+  glm::dvec3 k1_omega = computeAngularAccel(angularVelocity);
+  glm::dquat k1_quat = computeQuatDot(quaternion, angularVelocity);
 
-  quaternion.w += quaternionDot.w * deltaTime;
-  quaternion.x += quaternionDot.x * deltaTime;
-  quaternion.y += quaternionDot.y * deltaTime;
-  quaternion.z += quaternionDot.z * deltaTime;
+  // k2 = f(t + dt/2, y + k1*dt/2)
+  glm::dvec3 omega2 = angularVelocity + k1_omega * (deltaTime * 0.5);
+  glm::dquat quat2 = quaternion;
+  quat2.w += k1_quat.w * (deltaTime * 0.5);
+  quat2.x += k1_quat.x * (deltaTime * 0.5);
+  quat2.y += k1_quat.y * (deltaTime * 0.5);
+  quat2.z += k1_quat.z * (deltaTime * 0.5);
+  quat2 = glm::normalize(quat2);
+  glm::dvec3 k2_omega = computeAngularAccel(omega2);
+  glm::dquat k2_quat = computeQuatDot(quat2, omega2);
+
+  // k3 = f(t + dt/2, y + k2*dt/2)
+  glm::dvec3 omega3 = angularVelocity + k2_omega * (deltaTime * 0.5);
+  glm::dquat quat3 = quaternion;
+  quat3.w += k2_quat.w * (deltaTime * 0.5);
+  quat3.x += k2_quat.x * (deltaTime * 0.5);
+  quat3.y += k2_quat.y * (deltaTime * 0.5);
+  quat3.z += k2_quat.z * (deltaTime * 0.5);
+  quat3 = glm::normalize(quat3);
+  glm::dvec3 k3_omega = computeAngularAccel(omega3);
+  glm::dquat k3_quat = computeQuatDot(quat3, omega3);
+
+  // k4 = f(t + dt, y + k3*dt)
+  glm::dvec3 omega4 = angularVelocity + k3_omega * deltaTime;
+  glm::dquat quat4 = quaternion;
+  quat4.w += k3_quat.w * deltaTime;
+  quat4.x += k3_quat.x * deltaTime;
+  quat4.y += k3_quat.y * deltaTime;
+  quat4.z += k3_quat.z * deltaTime;
+  quat4 = glm::normalize(quat4);
+  glm::dvec3 k4_omega = computeAngularAccel(omega4);
+  glm::dquat k4_quat = computeQuatDot(quat4, omega4);
+
+  // Update: y_new = y + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+  angularVelocity += (deltaTime / 6.0) * (k1_omega + 2.0 * k2_omega + 2.0 * k3_omega + k4_omega);
+
+  quaternion.w += (deltaTime / 6.0) * (k1_quat.w + 2.0 * k2_quat.w + 2.0 * k3_quat.w + k4_quat.w);
+  quaternion.x += (deltaTime / 6.0) * (k1_quat.x + 2.0 * k2_quat.x + 2.0 * k3_quat.x + k4_quat.x);
+  quaternion.y += (deltaTime / 6.0) * (k1_quat.y + 2.0 * k2_quat.y + 2.0 * k3_quat.y + k4_quat.y);
+  quaternion.z += (deltaTime / 6.0) * (k1_quat.z + 2.0 * k2_quat.z + 2.0 * k3_quat.z + k4_quat.z);
 
   // Normalize quaternion to prevent drift
   quaternion = glm::normalize(quaternion);

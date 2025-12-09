@@ -1,6 +1,17 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+// Structure to hold orbit information
+struct Orbit
+{
+  double a;     // Semimajor axis (meters)
+  double e;     // Eccentricity
+  double i;     // Inclination (radians)
+  double omega; // Right ascension of ascending node (Longitude of ascending node)
+  double w;     // Argument of perigee/periapsis
+  double v;     // True anomoly
+};
+
 // Structure to hold city information
 struct City
 {

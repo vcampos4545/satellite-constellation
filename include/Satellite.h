@@ -17,6 +17,14 @@ enum class AttitudeControlMode
   TARGET_TRACKING    // Point toward a specific target
 };
 
+// Control algorithm types for reaction wheels
+enum class ControlAlgorithm
+{
+  PID,  // PID controller (default)
+  LQR,  // Linear Quadratic Regulator
+  MPC   // Model Predictive Control
+};
+
 class Satellite
 {
 public:
@@ -76,6 +84,10 @@ public:
   void setTargetQuaternion(const glm::dquat &q) { targetQuaternion = glm::normalize(q); }
   void setTargetPoint(const glm::dvec3 &point) { targetPoint = point; }
 
+  // Control algorithm selection
+  void setControlAlgorithm(ControlAlgorithm algo) { controlAlgorithm = algo; }
+  ControlAlgorithm getControlAlgorithm() const { return controlAlgorithm; }
+
   // Actuator configuration
   void enableReactionWheels(bool enable) { hasReactionWheels = enable; }
   void enableMagnetorquers(bool enable) { hasMagnetorquers = enable; }
@@ -125,8 +137,11 @@ private:
   // Step 3: Compute attitude error
   glm::dvec3 computeAttitudeError(const glm::dquat &currentAttitude, const glm::dquat &targetAttitude);
 
-  // Step 4: PID Controller - compute desired control torque
+  // Step 4: Control Algorithms - compute desired control torque
   glm::dvec3 computeControlTorque(const glm::dvec3 &attitudeError, double deltaTime);
+  glm::dvec3 computeControlTorquePID(const glm::dvec3 &attitudeError, double deltaTime);
+  glm::dvec3 computeControlTorqueLQR(const glm::dvec3 &attitudeError, double deltaTime);
+  glm::dvec3 computeControlTorqueMPC(const glm::dvec3 &attitudeError, double deltaTime);
 
   // Step 5: Actuator allocation and commanding
   void commandReactionWheels(const glm::dvec3 &desiredTorque, double deltaTime);
@@ -163,7 +178,7 @@ private:
 
   // Reaction wheel properties
   bool hasReactionWheels = false;
-  double reactionWheelMaxTorque = 0.1;                // Maximum torque per wheel (N·m)
+  double reactionWheelMaxTorque = 0.5;                // Maximum torque per wheel (N·m)
   double reactionWheelMaxMomentum = 10.0;             // Maximum momentum per wheel (N·m·s)
   glm::dvec3 reactionWheelMomentum = glm::dvec3(0.0); // Current stored momentum (body frame)
 
@@ -179,6 +194,7 @@ private:
 
   // Attitude control state
   AttitudeControlMode controlMode = AttitudeControlMode::NONE;
+  ControlAlgorithm controlAlgorithm = ControlAlgorithm::PID; // Default controller
   glm::dquat targetQuaternion = glm::dquat(1.0, 0.0, 0.0, 0.0); // Target orientation (identity)
   glm::dvec3 targetPoint = glm::dvec3(0.0);                     // Target point for tracking mode
 
@@ -190,6 +206,18 @@ private:
   // Integral error accumulation
   glm::dvec3 integralError = glm::dvec3(0.0); // Accumulated attitude error
   double integralErrorMax = 10.0;             // Anti-windup limit (rad)
+
+  // LQR controller state weighting matrices
+  // State: [attitude_error, angular_velocity]
+  glm::dmat3 lqrQ = glm::dmat3(10.0); // State cost matrix (diagonal)
+  glm::dmat3 lqrR = glm::dmat3(0.1);  // Control cost matrix (diagonal)
+  glm::dmat3 lqrK = glm::dmat3(0.0);  // LQR gain matrix (computed)
+
+  // MPC controller parameters
+  int mpcHorizon = 10;             // Prediction horizon (timesteps)
+  double mpcTimestep = 0.1;        // MPC internal timestep (s)
+  glm::dmat3 mpcQ = glm::dmat3(10.0); // State cost matrix
+  glm::dmat3 mpcR = glm::dmat3(0.1);  // Control cost matrix
 
   std::vector<glm::dvec3> footprintCircle; // Positions for drawing footprint circle
   std::vector<glm::dvec3> orbitPath;       // Historical positions for drawing orbit

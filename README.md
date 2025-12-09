@@ -56,19 +56,6 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
 
-## Earth Texture Setup
-
-1. Download an Earth texture from:
-
-   - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
-   - [NASA Visible Earth](https://visibleearth.nasa.gov/)
-
-2. Save as `textures/earth.jpg`
-
-3. The simulation will automatically load it on startup
-
-See `textures/README.md` for more details.
-
 ## Controls
 
 ### Camera
@@ -91,86 +78,87 @@ This simulation implements a high-fidelity orbital mechanics and attitude contro
 #### Gravitational Forces
 
 **Earth Gravity (Two-Body Problem)**
-```
-a_earth = -μ_earth * r / |r|³
-where μ_earth = G * M_earth = 3.986 × 10¹⁴ m³/s²
-```
+
+$$\vec{a}_{\text{earth}} = -\frac{\mu_{\text{earth}} \vec{r}}{|\vec{r}|^3}$$
+
+where $\mu_{\text{earth}} = G M_{\text{earth}} = 3.986 \times 10^{14} \text{ m}^3/\text{s}^2$
 
 **Third-Body Perturbations (Sun and Moon)**
-```
-a_sun = G * M_sun * (r_sun - r_sat) / |r_sun - r_sat|³
-a_moon = G * M_moon * (r_moon - r_sat) / |r_moon - r_sat|³
-```
+
+$$\vec{a}_{\text{sun}} = \frac{G M_{\text{sun}} (\vec{r}_{\text{sun}} - \vec{r}_{\text{sat}})}{|\vec{r}_{\text{sun}} - \vec{r}_{\text{sat}}|^3}$$
+
+$$\vec{a}_{\text{moon}} = \frac{G M_{\text{moon}} (\vec{r}_{\text{moon}} - \vec{r}_{\text{sat}})}{|\vec{r}_{\text{moon}} - \vec{r}_{\text{sat}}|^3}$$
 
 #### Atmospheric Drag
 
 Exponential atmosphere model with drag force opposing velocity:
 
-```
-ρ(h) = ρ₀ * e^(-h/H)
-where:
-  ρ₀ = 1.225 kg/m³ (sea level density)
-  H = 8500 m (scale height)
-  h = altitude above Earth surface
-
-F_drag = -½ * ρ(h) * v² * C_d * A * v̂
-a_drag = F_drag / m
+$$\rho(h) = \rho_0 e^{-h/H}$$
 
 where:
-  C_d = 2.2 (drag coefficient)
-  A = 10 m² (cross-sectional area)
-  m = 260 kg (satellite mass)
-  v̂ = velocity direction unit vector
-```
+- $\rho_0 = 1.225 \text{ kg/m}^3$ (sea level density)
+- $H = 8500 \text{ m}$ (scale height)
+- $h$ = altitude above Earth surface
+
+$$\vec{F}_{\text{drag}} = -\frac{1}{2} \rho(h) v^2 C_d A \hat{v}$$
+
+$$\vec{a}_{\text{drag}} = \frac{\vec{F}_{\text{drag}}}{m}$$
+
+where:
+- $C_d = 2.2$ (drag coefficient)
+- $A = 10 \text{ m}^2$ (cross-sectional area)
+- $m = 260 \text{ kg}$ (satellite mass)
+- $\hat{v}$ = velocity direction unit vector
 
 #### Solar Radiation Pressure
 
 Radiation pressure from sunlight (only when satellite is illuminated):
 
-```
-P(r) = P₀ * (AU / r)²
-where P₀ = I_solar / c = 1367 / 299792458 = 4.56 × 10⁻⁶ N/m²
+$$P(r) = P_0 \left(\frac{\text{AU}}{r}\right)^2$$
 
-F_srp = P(r) * A * C_r * ŝ
-a_srp = F_srp / m
+where $P_0 = \frac{I_{\text{solar}}}{c} = \frac{1367}{299792458} = 4.56 \times 10^{-6} \text{ N/m}^2$
+
+$$\vec{F}_{\text{srp}} = P(r) A C_r \hat{s}$$
+
+$$\vec{a}_{\text{srp}} = \frac{\vec{F}_{\text{srp}}}{m}$$
 
 where:
-  C_r = 1.3 (reflectivity coefficient: 1.0 = absorbing, 2.0 = perfect mirror)
-  ŝ = sun direction unit vector
-
-Eclipse Model: Cylindrical shadow approximation
-```
+- $C_r = 1.3$ (reflectivity coefficient: 1.0 = absorbing, 2.0 = perfect mirror)
+- $\hat{s}$ = sun direction unit vector
+- Eclipse Model: Cylindrical shadow approximation
 
 #### Orbital Elements & Initialization
 
 **Circular Orbits (Starlink Constellation)**
-```
-Orbital radius: r = R_earth + h
-Orbital velocity: v = √(μ/r)
-Inclination: i = 53° (typical Starlink)
-RAAN (Right Ascension of Ascending Node): Ω = 2π * planeId / numPlanes
-True Anomaly: ν = 2π * satId / satsPerPlane
-```
+
+$$r = R_{\text{earth}} + h$$
+
+$$v = \sqrt{\frac{\mu}{r}}$$
+
+- Inclination: $i = 53°$ (typical Starlink)
+- RAAN (Right Ascension of Ascending Node): $\Omega = \frac{2\pi \cdot \text{planeId}}{\text{numPlanes}}$
+- True Anomaly: $\nu = \frac{2\pi \cdot \text{satId}}{\text{satsPerPlane}}$
 
 **Elliptical Orbits (Molniya Constellation)**
-```
-Semi-major axis: a = 26.6 × 10⁶ m
-Eccentricity: e = 0.72
-Inclination: i = 63.4° (critical inclination - minimizes apsidal precession)
-Argument of perigee: ω = 270° (apogee over northern hemisphere)
 
-Radius: r(ν) = a(1 - e²) / (1 + e*cos(ν))
-Velocity magnitude: v = √(μ/p) where p = a(1 - e²)
-Velocity direction: v_r = √(μ/p) * e*sin(ν), v_θ = √(μ/p) * (1 + e*cos(ν))
-```
+- Semi-major axis: $a = 26.6 \times 10^6 \text{ m}$
+- Eccentricity: $e = 0.72$
+- Inclination: $i = 63.4°$ (critical inclination - minimizes apsidal precession)
+- Argument of perigee: $\omega = 270°$ (apogee over northern hemisphere)
+
+$$r(\nu) = \frac{a(1 - e^2)}{1 + e\cos(\nu)}$$
+
+$$v = \sqrt{\frac{\mu}{p}} \quad \text{where } p = a(1 - e^2)$$
+
+$$v_r = \sqrt{\frac{\mu}{p}} \cdot e\sin(\nu), \quad v_\theta = \sqrt{\frac{\mu}{p}} \cdot (1 + e\cos(\nu))$$
 
 **Orbital Period (Kepler's Third Law)**
-```
-T = 2π√(a³/μ)
 
-Specific orbital energy: ε = v²/2 - μ/r
-Semi-major axis from energy: a = -μ/(2ε)
-```
+$$T = 2\pi\sqrt{\frac{a^3}{\mu}}$$
+
+$$\varepsilon = \frac{v^2}{2} - \frac{\mu}{r} \quad \text{(specific orbital energy)}$$
+
+$$a = -\frac{\mu}{2\varepsilon} \quad \text{(semi-major axis from energy)}$$
 
 #### Numerical Integration
 
@@ -178,18 +166,16 @@ Semi-major axis from energy: a = -μ/(2ε)
 
 The simulation uses RK4 for orbital position and velocity integration:
 
-```
-k₁ = f(t, y)
-k₂ = f(t + dt/2, y + k₁*dt/2)
-k₃ = f(t + dt/2, y + k₂*dt/2)
-k₄ = f(t + dt, y + k₃*dt)
+$$k_1 = f(t, y)$$
+$$k_2 = f(t + \Delta t/2, y + k_1 \Delta t/2)$$
+$$k_3 = f(t + \Delta t/2, y + k_2 \Delta t/2)$$
+$$k_4 = f(t + \Delta t, y + k_3 \Delta t)$$
 
-y_new = y + (dt/6) * (k₁ + 2k₂ + 2k₃ + k₄)
+$$y_{\text{new}} = y + \frac{\Delta t}{6}(k_1 + 2k_2 + 2k_3 + k_4)$$
 
 where:
-  y = [position, velocity]
-  f(t, y) = [velocity, acceleration]
-```
+- $y = [\vec{r}, \vec{v}]$ (position, velocity)
+- $f(t, y) = [\vec{v}, \vec{a}]$ (velocity, acceleration)
 
 **Sub-Stepping for Stability**
 
@@ -317,86 +303,100 @@ The satellite implements a complete ADCS control loop mirroring flight software 
 
 **Attitude Representation (Quaternions)**
 
-```
-Quaternion: q = [qw, qx, qy, qz] = [cos(θ/2), sin(θ/2)*axis]
+$$q = [q_w, q_x, q_y, q_z] = \left[\cos\left(\frac{\theta}{2}\right), \sin\left(\frac{\theta}{2}\right)\vec{u}\right]$$
 
 Quaternion multiplication (rotation composition):
-q₁ ⊗ q₂ = [w₁w₂ - v₁·v₂, w₁v₂ + w₂v₁ + v₁×v₂]
 
-Inverse rotation: q⁻¹ = [qw, -qx, -qy, -qz] (for unit quaternions)
+$$q_1 \otimes q_2 = [w_1 w_2 - \vec{v}_1 \cdot \vec{v}_2, \, w_1 \vec{v}_2 + w_2 \vec{v}_1 + \vec{v}_1 \times \vec{v}_2]$$
 
-Rotate vector: v' = q ⊗ [0,v] ⊗ q⁻¹
-```
+Inverse rotation: $q^{-1} = [q_w, -q_x, -q_y, -q_z]$ (for unit quaternions)
+
+Rotate vector: $\vec{v}' = q \otimes [0, \vec{v}] \otimes q^{-1}$
 
 **Quaternion Kinematics**
 
-```
-q̇ = ½ * Ω(ω) * q
+$$\dot{q} = \frac{1}{2} \Omega(\vec{\omega}) q$$
 
-where Ω(ω) = [ 0   -ωx  -ωy  -ωz ]
-             [ ωx   0    ωz  -ωy ]
-             [ ωy  -ωz   0    ωx ]
-             [ ωz   ωy  -ωx   0  ]
+where
 
-Simplified: q̇ = ½ * [0, ω] ⊗ q
-```
+$$\Omega(\vec{\omega}) = \begin{bmatrix}
+0 & -\omega_x & -\omega_y & -\omega_z \\
+\omega_x & 0 & \omega_z & -\omega_y \\
+\omega_y & -\omega_z & 0 & \omega_x \\
+\omega_z & \omega_y & -\omega_x & 0
+\end{bmatrix}$$
+
+Simplified: $\dot{q} = \frac{1}{2} [0, \vec{\omega}] \otimes q$
 
 **Euler's Rigid Body Equations**
 
-```
-I*α = τ_external - ω × (I*ω)
+$$I \vec{\alpha} = \vec{\tau}_{\text{external}} - \vec{\omega} \times (I\vec{\omega})$$
 
 where:
-  I = [Ixx, Iyy, Izz] = [50, 50, 20] kg·m² (diagonal inertia tensor)
-  α = dω/dt (angular acceleration)
-  ω = angular velocity vector
-  τ_external = control torque from actuators
+- $I = [I_{xx}, I_{yy}, I_{zz}] = [50, 50, 20] \text{ kg·m}^2$ (diagonal inertia tensor)
+- $\vec{\alpha} = \frac{d\vec{\omega}}{dt}$ (angular acceleration)
+- $\vec{\omega}$ = angular velocity vector
+- $\vec{\tau}_{\text{external}}$ = control torque from actuators
 
-Gyroscopic torque: τ_gyro = -ω × (I*ω)
-```
+Gyroscopic torque: $\vec{\tau}_{\text{gyro}} = -\vec{\omega} \times (I\vec{\omega})$
 
 **PID Control Law**
 
-```
-τ_control = Kp*e_att + Ki*∫e_att*dt + Kd*(-ω)
+$$\vec{\tau}_{\text{control}} = K_p \vec{e}_{\text{att}} + K_i \int \vec{e}_{\text{att}} \, dt + K_d (-\vec{\omega})$$
 
-Proportional gain: Kp = I*ωn² (N·m/rad)
-Derivative gain: Kd = 2*ζ*I*ωn (N·m·s/rad)
-Integral gain: Ki = 0.01*Kp (N·m/(rad·s))
+Auto-tuned gains:
+- Proportional gain: $K_p = I \omega_n^2$ (N·m/rad)
+- Derivative gain: $K_d = 2\zeta I \omega_n$ (N·m·s/rad)
+- Integral gain: $K_i = 0.01 K_p$ (N·m/(rad·s))
 
 where:
-  ωn = natural frequency = 4/(ζ*ts)
-  ζ = damping ratio (typically 0.7-0.9)
-  ts = settling time (typically 20-60 seconds)
-
-Anti-windup: |∫e_att*dt| < e_max
-```
+- $\omega_n = \frac{4}{\zeta t_s}$ (natural frequency)
+- $\zeta$ = 0.7-0.9 (damping ratio)
+- $t_s$ = 20-60 s (settling time)
+- Anti-windup: $|\int \vec{e}_{\text{att}} \, dt| < e_{\max}$
 
 **Reaction Wheel Dynamics**
 
-```
-Torque application: τ_spacecraft = -τ_wheel (Newton's 3rd law)
+$$\vec{\tau}_{\text{spacecraft}} = -\vec{\tau}_{\text{wheel}} \quad \text{(Newton's 3rd law)}$$
 
-Momentum accumulation: h_wheel = ∫τ_wheel*dt
+$$\vec{h}_{\text{wheel}} = \int \vec{\tau}_{\text{wheel}} \, dt \quad \text{(momentum accumulation)}$$
 
 Constraints:
-  |τ_wheel| < τ_max = 0.1 N·m (per wheel)
-  |h_wheel| < h_max = 10 N·m·s (per wheel)
-
-When saturated: Use magnetorquers for desaturation
-```
+- $|\tau_{\text{wheel}}| < \tau_{\max} = 0.1 \text{ N·m}$ (per wheel)
+- $|h_{\text{wheel}}| < h_{\max} = 10 \text{ N·m·s}$ (per wheel)
+- When saturated: Use magnetorquers for desaturation
 
 **Magnetorquer B-dot Control**
 
-```
 Detumble mode (remove initial tumbling):
-dB/dt ≈ ω × B (in body frame)
-m = -k * (ω × B)  (dipole moment command)
-τ = m × B  (generated torque)
 
-Note: Can only generate torque perpendicular to B-field
-Effective for slow detumbling, not precision pointing
-```
+$$\frac{d\vec{B}}{dt} \approx \vec{\omega} \times \vec{B} \quad \text{(in body frame)}$$
+
+$$\vec{m} = -k (\vec{\omega} \times \vec{B}) \quad \text{(dipole moment command)}$$
+
+$$\vec{\tau} = \vec{m} \times \vec{B} \quad \text{(generated torque)}$$
+
+Note: Can only generate torque perpendicular to $\vec{B}$-field. Effective for slow detumbling, not precision pointing.
+
+**LQR Control (Linear Quadratic Regulator)** *(Available in simulation)*
+
+Optimal control minimizing cost function:
+
+$$J = \int_0^\infty (\vec{x}^T Q \vec{x} + \vec{u}^T R \vec{u}) \, dt$$
+
+where $\vec{x} = [\vec{e}_{\text{att}}, \vec{\omega}]$ (state), $\vec{u} = \vec{\tau}$ (control input)
+
+Control law: $\vec{u} = -K \vec{x}$ where $K$ is computed from algebraic Riccati equation.
+
+**MPC Control (Model Predictive Control)** *(Available in simulation)*
+
+Solves optimization problem at each timestep over prediction horizon:
+
+$$\min_{\vec{u}(t)} \sum_{k=0}^{N} \left(\|\vec{x}(k)\|_Q^2 + \|\vec{u}(k)\|_R^2\right)$$
+
+subject to:
+- Dynamics: $\vec{x}(k+1) = f(\vec{x}(k), \vec{u}(k))$
+- Constraints: $|\vec{\tau}| \leq \tau_{\max}$, $|\vec{h}_{\text{wheel}}| \leq h_{\max}$
 
 #### Control Modes
 
@@ -413,17 +413,15 @@ Effective for slow detumbling, not precision pointing
 
 The satellite's ground coverage footprint is computed geometrically:
 
-```
-Horizon angle: λ₀ = arccos(R_earth / r_sat)
+$$\lambda_0 = \arccos\left(\frac{R_{\text{earth}}}{r_{\text{sat}}}\right) \quad \text{(horizon angle)}$$
 
 For each point on footprint circle:
-  1. Start with nadir direction: n̂ = (sat - earth) / |sat - earth|
-  2. Find perpendicular vectors forming horizon plane
-  3. Rotate horizon vector around nadir axis: θ ∈ [0, 2π]
-  4. Project to Earth surface
+1. Start with nadir direction: $\hat{n} = \frac{\vec{r}_{\text{sat}} - \vec{r}_{\text{earth}}}{|\vec{r}_{\text{sat}} - \vec{r}_{\text{earth}}|}$
+2. Find perpendicular vectors forming horizon plane
+3. Rotate horizon vector around nadir axis: $\theta \in [0, 2\pi]$
+4. Project to Earth surface
 
-Footprint radius on surface: d = R_earth * arcsin(sin(λ₀) * r_sat / R_earth)
-```
+$$d = R_{\text{earth}} \cdot \arcsin\left(\sin(\lambda_0) \cdot \frac{r_{\text{sat}}}{R_{\text{earth}}}\right) \quad \text{(footprint radius)}$$
 
 ## License
 
@@ -432,3 +430,27 @@ This project is for educational and simulation purposes.
 ## Credits
 
 - Texture loading via stb_image by Sean Barrett
+
+## Texture Setup
+
+### Earth Texture
+
+1. Download an Earth texture from:
+   - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
+   - [NASA Visible Earth](https://visibleearth.nasa.gov/)
+
+2. Save as `textures/earth.jpg`
+
+3. The simulation will automatically load it on startup
+
+### Moon Texture
+
+1. Download a Moon texture from:
+   - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
+   - [NASA CGI Moon Kit](https://svs.gsfc.nasa.gov/cgi-bin/details.cgi?aid=4720)
+
+2. Save as `textures/moon.jpg`
+
+3. The simulation will automatically load it on startup
+
+See `textures/README.md` for more details.

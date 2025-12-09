@@ -204,7 +204,7 @@ int main()
   // Init gui
   GLFWwindow *window = initGUI(SCREEN_WIDTH, SCREEN_HEIGHT);
 
-  // Init simulation
+  // Init simulation (Customize simulation in universe init)
   Universe universe;
 
   // Create camera
@@ -423,7 +423,7 @@ int main()
       // Apply: Translation -> Rotation (attitude) -> Scale
       glm::mat4 bodyModel = glm::mat4(1.0f);
       bodyModel = glm::translate(bodyModel, satPos);
-      bodyModel = bodyModel * attitudeMatrix; // Apply attitude rotation
+      bodyModel = bodyModel * attitudeMatrix;                               // Apply attitude rotation
       bodyModel = glm::scale(bodyModel, glm::vec3(8.0e4f, 1.2e5f, 8.0e4f)); // 80km x 120km x 80km
       sphereShader.setMat4("model", bodyModel);
       cubeMesh.draw();
@@ -432,7 +432,7 @@ int main()
       // Solar panels extend along X-axis in body frame
       glm::mat4 leftPanelModel = glm::mat4(1.0f);
       leftPanelModel = glm::translate(leftPanelModel, satPos);
-      leftPanelModel = leftPanelModel * attitudeMatrix; // Apply attitude rotation
+      leftPanelModel = leftPanelModel * attitudeMatrix;                                // Apply attitude rotation
       leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e5f, 0.0f, 0.0f)); // Offset to the left (in body frame)
       leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f));  // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", leftPanelModel);
@@ -445,7 +445,7 @@ int main()
       // Render right solar panel
       glm::mat4 rightPanelModel = glm::mat4(1.0f);
       rightPanelModel = glm::translate(rightPanelModel, satPos);
-      rightPanelModel = rightPanelModel * attitudeMatrix; // Apply attitude rotation
+      rightPanelModel = rightPanelModel * attitudeMatrix;                               // Apply attitude rotation
       rightPanelModel = glm::translate(rightPanelModel, glm::vec3(1.5e5f, 0.0f, 0.0f)); // Offset to the right (in body frame)
       rightPanelModel = glm::scale(rightPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f)); // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", rightPanelModel);
@@ -572,26 +572,6 @@ int main()
       lineRenderer.draw();
     }
     glLineWidth(2.0f); // Reset to normal line width
-
-    // Render moon's orbit path
-    const auto &moonOrbitPath = universe.getMoonOrbitPath();
-    if (moonOrbitPath.size() >= 2)
-    {
-      // Convert dvec3 to vec3 for rendering
-      std::vector<glm::vec3> pathVertices;
-      pathVertices.reserve(moonOrbitPath.size());
-      for (const auto &pos : moonOrbitPath)
-      {
-        pathVertices.push_back(glm::vec3(pos));
-      }
-
-      lineRenderer.setVertices(pathVertices);
-
-      // Use a light gray color for moon orbit
-      glm::vec3 moonOrbitColor = glm::vec3(0.5f, 0.5f, 0.5f);
-      lineShader.setVec3("lineColor", moonOrbitColor);
-      lineRenderer.draw();
-    }
 
     glLineWidth(1.0f); // Reset line width
 
