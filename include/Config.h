@@ -6,7 +6,7 @@ struct Orbit
 {
   double a;     // Semimajor axis (meters)
   double e;     // Eccentricity
-  double i;     // Inclination (radians)
+  double i;     // Inclination (degrees)
   double omega; // Right ascension of ascending node (Longitude of ascending node)
   double w;     // Argument of perigee/periapsis
   double v;     // True anomoly

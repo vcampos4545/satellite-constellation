@@ -32,6 +32,9 @@ public:
   // Initialize with Earth and Sun
   void initializeEarthSunAndMoon();
 
+  // Initialize GPS Constellation
+  void addGPSConstellation();
+
   // Initialize a GEO satellite
   void addGEOSatellite();
 
@@ -62,7 +65,7 @@ private:
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;
   std::shared_ptr<CelestialBody> moon;
-  double moonOrbitAngle; // Current angle of moon's orbit around Earth
+  double moonOrbitAngle;                 // Current angle of moon's orbit around Earth
   std::vector<glm::dvec3> moonOrbitPath; // Visualization of moon's orbit path
 };
 

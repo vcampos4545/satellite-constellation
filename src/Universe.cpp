@@ -15,8 +15,10 @@ Universe::Universe() : moonOrbitAngle(0.0)
 
   initializeEarthSunAndMoon();
 
+  addGPSConstellation();
+
   // Add Starlink-like LEO constellation
-  addStarlinkConstellation(8, 1); // 2 orbital planes, 2 satellites per plane = 4 satellites
+  // addStarlinkConstellation(8, 1); // 2 orbital planes, 2 satellites per plane = 4 satellites
 
   // Add Molniya constellation (highly elliptical orbit for high latitude coverage)
   // addMolniyaConstellation(3); // 3 satellites for continuous coverage
@@ -47,7 +49,7 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
   // Enable ADCS with reaction wheels
   satellite->enableReactionWheels(true);
   satellite->setControlMode(AttitudeControlMode::TARGET_TRACKING);
-  satellite->setControlAlgorithm(ControlAlgorithm::LQR);
+  satellite->setControlAlgorithm(ControlAlgorithm::PID);
   // satellite->setControlAlgorithm(ControlAlgorithm::MPC);
 
   // Calculate complete orbital path
@@ -157,6 +159,59 @@ void Universe::initializeEarthSunAndMoon()
   moon->setVelocity(moonVel);
   moon->enablePhysicsUpdate(true); // Enable physics simulation for the moon
   bodies.push_back(moon);
+}
+
+void Universe::addGPSConstellation()
+{
+  // GPS has ~ 24 satellites in 6 planes at 55 degree inclination
+  double inclination = glm::radians(55.0);
+  double orbitalRadius = EARTH_RADIUS + GPS_ALTITUDE;
+  double orbitalVelocity = sqrt(G * EARTH_MASS / orbitalRadius);
+  int numPlanes = 6;
+  int numSatellites = 24;
+  int numSatellitesPerPlane = numSatellites / numPlanes;
+
+  for (int plane = 0; plane < numPlanes; ++plane)
+  {
+    double raan = (2.0 * PI * plane) / numPlanes;
+
+    for (int sat = 0; sat < numSatellitesPerPlane; ++sat)
+    {
+      double trueAnomaly = (2.0 * PI * sat) / numSatellitesPerPlane;
+
+      glm::dvec3 position(
+          orbitalRadius * cos(trueAnomaly),
+          0.0,
+          orbitalRadius * sin(trueAnomaly));
+
+      // Velocity perpendicular to position (tangent to orbit)
+      glm::dvec3 velocity(
+          -orbitalVelocity * sin(trueAnomaly),
+          0.0,
+          orbitalVelocity * cos(trueAnomaly));
+
+      // Apply inclination (rotate around x-axis)
+      glm::dmat4 inclinationMatrix = glm::rotate(glm::dmat4(1.0), inclination, glm::dvec3(1.0, 0.0, 0.0));
+      position = glm::dvec3(inclinationMatrix * glm::dvec4(position, 1.0));
+      velocity = glm::dvec3(inclinationMatrix * glm::dvec4(velocity, 0.0));
+
+      // Apply RAAN (rotate around y-axis)
+      glm::dmat4 raanMatrix = glm::rotate(glm::dmat4(1.0), raan, glm::dvec3(0.0, 1.0, 0.0));
+      position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
+      velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
+
+      // Create satellite with orbit and footprint
+      auto satellite = createSatelliteWithOrbit(
+          position,
+          velocity,
+          glm::vec3(0.3f, 0.9f, 0.0f), // Bright cyan color
+          plane,                       // planeId
+          sat                          // indexInPlane
+      );
+
+      satellites.push_back(satellite);
+    }
+  }
 }
 
 void Universe::addGEOSatellite()

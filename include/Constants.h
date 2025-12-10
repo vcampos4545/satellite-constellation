@@ -19,16 +19,16 @@ const double SUN_RADIUS = 6.96e8; // meters
 const double AU = 1.496e11;       // Astronomical Unit in meters
 
 // Moon constants
-const double MOON_MASS = 7.342e22;                                        // kg
-const double MOON_RADIUS = 1.7371e6;                                      // meters
-const double MOON_SEMI_MAJOR_AXIS = 3.844e8;                              // meters (384,400 km from Earth)
-const double MOON_ECCENTRICITY = 0.0549;                                  // Eccentricity (slightly elliptical)
-const double MOON_INCLINATION_TO_ECLIPTIC = 5.145;                        // degrees (to ecliptic plane)
-const double MOON_ORBITAL_PERIOD = 27.3 * 24.0 * 3600.0;                  // seconds (sidereal month)
-const double MOON_ANGULAR_VELOCITY = 2.0 * PI / MOON_ORBITAL_PERIOD;      // radians per second (orbital)
-const double MOON_ROTATION_PERIOD = MOON_ORBITAL_PERIOD;                  // Tidally locked (same as orbital period)
+const double MOON_MASS = 7.342e22;                                             // kg
+const double MOON_RADIUS = 1.7371e6;                                           // meters
+const double MOON_SEMI_MAJOR_AXIS = 3.844e8;                                   // meters (384,400 km from Earth)
+const double MOON_ECCENTRICITY = 0.0549;                                       // Eccentricity (slightly elliptical)
+const double MOON_INCLINATION_TO_ECLIPTIC = 5.145;                             // degrees (to ecliptic plane)
+const double MOON_ORBITAL_PERIOD = 27.3 * 24.0 * 3600.0;                       // seconds (sidereal month)
+const double MOON_ANGULAR_VELOCITY = 2.0 * PI / MOON_ORBITAL_PERIOD;           // radians per second (orbital)
+const double MOON_ROTATION_PERIOD = MOON_ORBITAL_PERIOD;                       // Tidally locked (same as orbital period)
 const double MOON_ROTATION_ANGULAR_VELOCITY = 2.0 * PI / MOON_ROTATION_PERIOD; // radians per second
-const double MOON_AXIAL_TILT = 6.68;                                      // degrees (obliquity to its orbital plane)
+const double MOON_AXIAL_TILT = 6.68;                                           // degrees (obliquity to its orbital plane)
 
 // Ecliptic plane angle (angle between Earth's equator and ecliptic)
 const double ECLIPTIC_OBLIQUITY = 23.44; // degrees (Earth's axial tilt)
@@ -36,6 +36,7 @@ const double ECLIPTIC_OBLIQUITY = 23.44; // degrees (Earth's axial tilt)
 // Satellite orbit altitudes
 const double GEO_ALTITUDE = 35.786e6; // GEO altitude above Earth surface (meters)
 const double LEO_ALTITUDE = 550e3;    // Starlink altitude ~550 km
+const double GPS_ALTITUDE = 20.2e6;   // Altitude of GPS satellites
 
 // Molniya orbit parameters (highly elliptical orbit for high latitude coverage)
 const double MOLNIYA_SEMI_MAJOR_AXIS = 26.6e6; // Semi-major axis (meters from Earth center)
