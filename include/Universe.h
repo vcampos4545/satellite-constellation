@@ -35,9 +35,6 @@ public:
   // Initialize GPS Constellation
   void addGPSConstellation();
 
-  // Initialize a GEO satellite
-  void addGEOSatellite();
-
   // Initialize a Starlink-like LEO constellation
   void addStarlinkConstellation(int numPlanes = 6, int satellitesPerPlane = 10);
 
@@ -53,6 +50,7 @@ public:
 private:
   // Helper method to create a satellite with orbit and footprint calculations
   std::shared_ptr<Satellite> createSatelliteWithOrbit(
+      const Orbit orbit,
       const glm::dvec3 &position,
       const glm::dvec3 &velocity,
       const glm::vec3 &color,

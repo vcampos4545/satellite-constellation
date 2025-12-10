@@ -36,8 +36,11 @@ struct State
   double lastMouseY;
   float currentTheta;
   float currentPhi;
-  float *timeWarpMultiplier; // Pointer to time warp multiplier
-  bool *isPaused;            // Pointer to pause state
+  float *timeWarpMultiplier;    // Pointer to time warp multiplier
+  bool *isPaused;               // Pointer to pause state
+  Satellite *selectedSatellite; // Pointer to optional selected satellite
+  int windowWidth;              // Current window width
+  int windowHeight;             // Current window height
 };
 
 // Mouse scroll callback for zooming
@@ -97,6 +100,28 @@ void cursorPosCallback(GLFWwindow *window, double xpos, double ypos)
   }
 }
 
+// Framebuffer size callback for handling window resizing
+void framebufferSizeCallback(GLFWwindow *window, int width, int height)
+{
+  State *state = static_cast<State *>(glfwGetWindowUserPointer(window));
+  if (state)
+  {
+    // Update stored window dimensions
+    state->windowWidth = width;
+    state->windowHeight = height;
+
+    // Update viewport
+    glViewport(0, 0, width, height);
+
+    // Update camera aspect ratio
+    if (state->camera && height > 0)
+    {
+      float aspectRatio = (float)width / (float)height;
+      state->camera->setAspectRatio(aspectRatio);
+    }
+  }
+}
+
 // Keyboard callback for time warp controls
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
@@ -143,11 +168,128 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
     *state->isPaused = !(*state->isPaused);
     std::cout << (*state->isPaused ? "PAUSED" : "RUNNING") << std::endl;
   }
-  else if (key == GLFW_KEY_S) // TEMPORARY: Press s to focus on random satellite
+  else if (key == GLFW_KEY_S) // Press S to toggle satellite tracking
   {
-    Satellite sat = *state->universe->getSatellites()[0];
-    state->camera->setTarget(sat.getPosition());
+    if (state->selectedSatellite != nullptr)
+    {
+      // Deselect satellite
+      state->selectedSatellite = nullptr;
+      std::cout << "Satellite tracking disabled" << std::endl;
+    }
+    else if (!state->universe->getSatellites().empty())
+    {
+      // Select first satellite
+      if (state->selectedSatellite == nullptr)
+      {
+        state->selectedSatellite = state->universe->getSatellites()[0].get();
+      }
+      else
+      {
+        state->selectedSatellite = nullptr;
+        // Reset target to earth
+        state->camera->setTarget(state->universe->getEarth()->getPosition());
+      }
+    }
   }
+}
+
+// Render star background
+void renderStarBackground(const Camera &camera, Shader &sphereShader, Sphere &sphereMesh, Texture &starsTexture, bool hasTexture)
+{
+  if (!hasTexture)
+    return;
+
+  // Disable depth writing so stars are always in the background
+  glDepthMask(GL_FALSE);
+
+  // Create view matrix with only rotation (no translation)
+  glm::mat4 view = glm::mat4(glm::mat3(camera.getViewMatrix()));
+
+  // Use sphere shader
+  sphereShader.use();
+  sphereShader.setMat4("view", view);
+  sphereShader.setMat4("projection", camera.getProjectionMatrix());
+
+  // Create model matrix for background sphere
+  // Make it very large so it encompasses everything
+  glm::mat4 model = glm::mat4(1.0f);
+  model = glm::scale(model, glm::vec3(1e11f)); // 100 billion meters radius
+
+  sphereShader.setMat4("model", model);
+  sphereShader.setVec3("objectColor", glm::vec3(0.6f, 0.6f, 0.6f)); // Slightly dimmed
+
+  // Bind stars texture
+  starsTexture.bind(0);
+  sphereShader.setInt("textureSampler", 0);
+  sphereShader.setBool("useTexture", true);
+
+  // Make stars self-illuminated (no lighting applied)
+  sphereShader.setBool("isEmissive", true);
+
+  // Draw the background sphere
+  sphereMesh.draw();
+
+  // Re-enable depth writing
+  glDepthMask(GL_TRUE);
+}
+
+// Render coordinate axis in the bottom left corner
+void renderCoordinateAxis(const Camera &camera, Shader &lineShader, LineRenderer &lineRenderer, int windowWidth, int windowHeight)
+{
+  // Save current viewport
+  GLint viewport[4];
+  glGetIntegerv(GL_VIEWPORT, viewport);
+
+  // Set viewport for axis display in bottom left corner
+  int axisSize = 200; // Size of the axis display area (100x100 pixels)
+  int margin = 10;    // Margin from the corner
+  glViewport(margin, margin, axisSize, axisSize);
+
+  // Disable depth test for overlay rendering
+  glDisable(GL_DEPTH_TEST);
+
+  // Create orthographic projection for the axis
+  glm::mat4 projection = glm::ortho(-1.5f, 1.5f, -1.5f, 1.5f, -10.0f, 10.0f);
+
+  // Create view matrix that only rotates (no translation)
+  // Extract rotation from camera view matrix
+  glm::mat4 cameraView = camera.getViewMatrix();
+  glm::mat4 axisView = glm::mat4(glm::mat3(cameraView)); // Remove translation component
+
+  // Set up shader
+  lineShader.use();
+  lineShader.setMat4("view", axisView);
+  lineShader.setMat4("projection", projection);
+
+  // Increase line width for better visibility
+  glLineWidth(3.0f);
+
+  // Draw X axis (red)
+  std::vector<glm::vec3> xAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)};
+  lineRenderer.setVertices(xAxis);
+  lineShader.setVec3("lineColor", glm::vec3(1.0f, 0.0f, 0.0f)); // Red
+  lineRenderer.draw();
+
+  // Draw Y axis (green)
+  std::vector<glm::vec3> yAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)};
+  lineRenderer.setVertices(yAxis);
+  lineShader.setVec3("lineColor", glm::vec3(0.0f, 1.0f, 0.0f)); // Green
+  lineRenderer.draw();
+
+  // Draw Z axis (blue)
+  std::vector<glm::vec3> zAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)};
+  lineRenderer.setVertices(zAxis);
+  lineShader.setVec3("lineColor", glm::vec3(0.0f, 0.0f, 1.0f)); // Blue
+  lineRenderer.draw();
+
+  // Reset line width
+  glLineWidth(1.0f);
+
+  // Re-enable depth test
+  glEnable(GL_DEPTH_TEST);
+
+  // Restore original viewport
+  glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
 
 GLFWwindow *initGUI(int screenWidth = 800, int screenHeight = 600)
@@ -164,6 +306,7 @@ GLFWwindow *initGUI(int screenWidth = 800, int screenHeight = 600)
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required on macOS
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);           // Make window resizable
 
   // Create a windowed mode window and its OpenGL context
   GLFWwindow *window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Constelation", NULL, NULL);
@@ -227,6 +370,13 @@ int main()
   state.currentPhi = glm::pi<float>() / 4.0f; // Match initial camera phi
   state.timeWarpMultiplier = &timeWarpMultiplier;
   state.isPaused = &isPaused;
+  state.selectedSatellite = nullptr;
+
+  // Initialize window dimensions in state
+  int framebufferWidth, framebufferHeight;
+  glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+  state.windowWidth = framebufferWidth;
+  state.windowHeight = framebufferHeight;
 
   // Set up input callbacks
   glfwSetWindowUserPointer(window, &state);
@@ -234,6 +384,7 @@ int main()
   glfwSetMouseButtonCallback(window, mouseButtonCallback);
   glfwSetCursorPosCallback(window, cursorPosCallback);
   glfwSetKeyCallback(window, keyCallback);
+  glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
   // Load shaders
   Shader sphereShader("shaders/sphere.vert", "shaders/sphere.frag");
@@ -264,11 +415,20 @@ int main()
     std::cout << "Note: Moon texture not found. Using solid color. Place a Moon texture at 'textures/moon.jpg'" << std::endl;
   }
 
+  // Load Stars texture for background
+  Texture starsTexture;
+  bool hasStarsTexture = starsTexture.load("textures/stars.jpg");
+  if (!hasStarsTexture)
+  {
+    std::cout << "Note: Stars texture not found. Using black background. Place a stars texture at 'textures/stars.jpg'" << std::endl;
+  }
+
   // Print controls
   std::cout << "\n=== CONTROLS ===" << std::endl;
   std::cout << "Mouse Drag: Pan camera around Earth" << std::endl;
   std::cout << "Mouse Scroll: Zoom in/out" << std::endl;
   std::cout << "SPACE: Pause/Unpause simulation" << std::endl;
+  std::cout << "S: Toggle satellite tracking (follows first satellite)" << std::endl;
   std::cout << ". or +: Increase time warp (1x -> 10x -> 100x -> 1000x -> 10000x)" << std::endl;
   std::cout << ", or -: Decrease time warp" << std::endl;
   std::cout << "================\n"
@@ -294,6 +454,11 @@ int main()
       float warpedDeltaTime = deltaTime * timeWarpMultiplier;
       // Update orbital physics with sub-stepping (max 0.1 second physics steps)
       universe.update(warpedDeltaTime, 0.1);
+      if (state.selectedSatellite != NULL)
+      {
+        camera.setTarget(state.selectedSatellite->getPosition());
+        camera.setAngles(state.currentTheta, state.currentPhi);
+      }
     }
 
     // Update window title with current time warp
@@ -317,6 +482,9 @@ int main()
     // Clear the screen
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Render star background first (before other objects)
+    renderStarBackground(camera, sphereShader, sphereMesh, starsTexture, hasStarsTexture);
 
     // Use shader
     sphereShader.use();
@@ -353,6 +521,10 @@ int main()
     sphereShader.setMat4("model", model);
     sphereShader.setVec3("objectColor", earth->getColor());
 
+    // Set lighting properties for Earth
+    sphereShader.setFloat("ambientStrength", 0.35f); // Higher ambient to make dark side visible
+    sphereShader.setBool("isEmissive", false);       // Earth is not self-illuminated
+
     // Use texture if available
     if (hasEarthTexture)
     {
@@ -377,6 +549,10 @@ int main()
       sphereShader.setMat4("model", moonModel);
       sphereShader.setVec3("objectColor", moon->getColor());
 
+      // Set lighting properties for Moon
+      sphereShader.setFloat("ambientStrength", 0.2f); // Slightly higher ambient for visibility
+      sphereShader.setBool("isEmissive", false);      // Moon is not self-illuminated
+
       // Use texture if available
       if (hasMoonTexture)
       {
@@ -400,15 +576,21 @@ int main()
       sunModel = glm::translate(sunModel, glm::vec3(sun->getPosition()));
       sunModel = glm::scale(sunModel, glm::vec3(sun->getRadius()));
       sphereShader.setMat4("model", sunModel);
-      // Make the sun very bright (emissive-like by using high values)
+
+      // Make the sun very bright and self-illuminated
       glm::vec3 sunColor = sun->getColor() * 3.0f; // Extra bright
       sphereShader.setVec3("objectColor", sunColor);
       sphereShader.setBool("useTexture", false);
+      sphereShader.setBool("isEmissive", true); // Sun is self-illuminated (no lighting applied)
+
       sphereMesh.draw();
     }
 
     // Render satellites with body + solar panels
     sphereShader.setBool("useTexture", false);
+    sphereShader.setFloat("ambientStrength", 0.15f); // Moderate ambient for satellites
+    sphereShader.setBool("isEmissive", false);       // Satellites are not self-illuminated
+
     for (const auto &satellite : universe.getSatellites())
     {
       glm::vec3 satPos = glm::vec3(satellite->getPosition());
@@ -424,7 +606,7 @@ int main()
       glm::mat4 bodyModel = glm::mat4(1.0f);
       bodyModel = glm::translate(bodyModel, satPos);
       bodyModel = bodyModel * attitudeMatrix;                               // Apply attitude rotation
-      bodyModel = glm::scale(bodyModel, glm::vec3(8.0e4f, 1.2e5f, 8.0e4f)); // 80km x 120km x 80km
+      bodyModel = glm::scale(bodyModel, glm::vec3(8.0e3f, 1.2e4f, 8.0e3f)); // 80km x 120km x 80km
       sphereShader.setMat4("model", bodyModel);
       cubeMesh.draw();
 
@@ -433,8 +615,8 @@ int main()
       glm::mat4 leftPanelModel = glm::mat4(1.0f);
       leftPanelModel = glm::translate(leftPanelModel, satPos);
       leftPanelModel = leftPanelModel * attitudeMatrix;                                // Apply attitude rotation
-      leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e5f, 0.0f, 0.0f)); // Offset to the left (in body frame)
-      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f));  // 200km x 180km x 20km (thin)
+      leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-1.5e4f, 0.0f, 0.0f)); // Offset to the left (in body frame)
+      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(2.0e4f, 1.8e4f, 0.2e4f));  // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", leftPanelModel);
 
       // Make solar panels slightly darker (blueish tint for solar cells)
@@ -446,8 +628,8 @@ int main()
       glm::mat4 rightPanelModel = glm::mat4(1.0f);
       rightPanelModel = glm::translate(rightPanelModel, satPos);
       rightPanelModel = rightPanelModel * attitudeMatrix;                               // Apply attitude rotation
-      rightPanelModel = glm::translate(rightPanelModel, glm::vec3(1.5e5f, 0.0f, 0.0f)); // Offset to the right (in body frame)
-      rightPanelModel = glm::scale(rightPanelModel, glm::vec3(2.0e5f, 1.8e5f, 0.2e5f)); // 200km x 180km x 20km (thin)
+      rightPanelModel = glm::translate(rightPanelModel, glm::vec3(1.5e4f, 0.0f, 0.0f)); // Offset to the right (in body frame)
+      rightPanelModel = glm::scale(rightPanelModel, glm::vec3(2.0e4f, 1.8e4f, 0.2e4f)); // 200km x 180km x 20km (thin)
       sphereShader.setMat4("model", rightPanelModel);
       sphereShader.setVec3("objectColor", panelColor);
       cubeMesh.draw();
@@ -456,6 +638,9 @@ int main()
     // Render ground stations as small dots
     sphereShader.use();
     sphereShader.setBool("useTexture", false);
+    sphereShader.setFloat("ambientStrength", 0.5f); // Higher ambient for visibility
+    sphereShader.setBool("isEmissive", false);      // Ground stations use normal lighting
+
     for (const auto &groundStation : universe.getGroundStations())
     {
       glm::vec3 stationPos = glm::vec3(groundStation->getPosition());
@@ -483,6 +668,12 @@ int main()
       // Draw beams to all visible satellites
       for (const auto &satellite : groundStation->getVisibleSatellites())
       {
+
+        if (state.selectedSatellite == nullptr || satellite.get() != state.selectedSatellite)
+        {
+          continue;
+        }
+
         // Draw power beam from ground station to satellite
         std::vector<glm::vec3> beamVertices;
         beamVertices.push_back(glm::vec3(groundStation->getPosition()));
@@ -527,6 +718,11 @@ int main()
     // Render footprint circles on Earth's surface
     for (const auto &satellite : universe.getSatellites())
     {
+      if (state.selectedSatellite == nullptr || satellite.get() != state.selectedSatellite)
+      {
+        continue;
+      }
+
       const auto &footprintCircle = satellite->getFootprintCircle();
       if (footprintCircle.size() >= 2)
       {
@@ -574,6 +770,9 @@ int main()
     glLineWidth(2.0f); // Reset to normal line width
 
     glLineWidth(1.0f); // Reset line width
+
+    // Render coordinate axis in bottom left corner
+    renderCoordinateAxis(camera, lineShader, lineRenderer, state.windowWidth, state.windowHeight);
 
     // Swap front and back buffers
     glfwSwapBuffers(window);

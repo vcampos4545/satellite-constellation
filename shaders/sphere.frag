@@ -9,6 +9,8 @@ uniform vec3 viewPos;         // Camera position
 uniform vec3 objectColor;     // Color of the celestial body (used if no texture)
 uniform sampler2D textureSampler;
 uniform bool useTexture;      // Whether to use texture or solid color
+uniform float ambientStrength; // Ambient light strength (adjustable per object)
+uniform bool isEmissive;      // Whether object is self-illuminated (like stars or sun)
 
 out vec4 FragColor;
 
@@ -25,8 +27,14 @@ void main()
         baseColor = objectColor;
     }
 
-    // Ambient lighting
-    float ambientStrength = 0.1;
+    // If object is emissive (stars, sun), skip lighting calculations
+    if (isEmissive)
+    {
+        FragColor = vec4(baseColor, 1.0);
+        return;
+    }
+
+    // Ambient lighting (controlled per object)
     vec3 ambient = ambientStrength * baseColor;
 
     // Diffuse lighting

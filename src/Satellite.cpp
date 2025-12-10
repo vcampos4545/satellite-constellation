@@ -3,8 +3,9 @@
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 
-Satellite::Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId, int indexInPlane)
-    : position(position),
+Satellite::Satellite(const Orbit orbit, const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId, int indexInPlane)
+    : orbit(orbit),
+      position(position),
       velocity(velocity),
       color(color),
       planeId(planeId),
@@ -154,56 +155,48 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
   calculateFootprint(earthCenter, 60);
 }
 
-void Satellite::calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition, int numPoints)
+void Satellite::calculateOrbitPath(int numPoints)
 {
   orbitPath.clear();
 
-  // Calculate orbital period using Kepler's third law
-  // Need to determine semi-major axis from current state using vis-viva equation
-  double r = glm::length(position - earthCenter); // Current distance
-  double v = glm::length(velocity);               // Current speed
-  double mu = G * earthMass;
+  // Extract orbital elements
+  double a = orbit.a;         // semimajor axis (meters)
+  double e = orbit.e;         // eccentricity
+  double i = orbit.i;         // inclination (radians)
+  double omega = orbit.omega; // RAAN - Right Ascension of Ascending Node (radians)
+  double w = orbit.w;         // argument of perigee (radians)
 
-  // Specific orbital energy: ε = v²/2 - μ/r
-  double specificEnergy = (v * v) / 2.0 - mu / r;
-
-  // Semi-major axis from energy: a = -μ/(2ε)
-  double semiMajorAxis;
-  if (specificEnergy < 0.0) // Bound orbit (elliptical)
+  // Calculate orbit points in perifocal frame, then transform to inertial frame
+  for (int pointIdx = 0; pointIdx <= numPoints; ++pointIdx)
   {
-    semiMajorAxis = -mu / (2.0 * specificEnergy);
+    // True anomaly - angle from periapsis
+    double theta = 2.0 * PI * pointIdx / numPoints;
+
+    // Orbital radius at this true anomaly (polar equation of ellipse)
+    double r = (a * (1.0 - e * e)) / (1.0 + e * cos(theta));
+
+    // Position in perifocal coordinates (orbital plane, periapsis on x-axis)
+    glm::dvec3 pos(
+        r * cos(theta), // x - along periapsis direction
+        0.0,            // y - perpendicular in orbital plane
+        r * sin(theta)  // z - out of plane (zero in perifocal frame)
+    );
+
+    // Transform from perifocal to inertial frame using rotation sequence:
+    // 1. Rotate by argument of perigee (w) around y-axis
+    // 2. Rotate by inclination (i) around x-axis
+    // 3. Rotate by RAAN (omega) around z-axis
+
+    // Apply inclination rotation (around z-axis)
+    glm::dmat4 rotI = glm::rotate(glm::dmat4(1.0), -i, glm::dvec3(0.0, 0.0, 1.0));
+    pos = glm::dvec3(rotI * glm::dvec4(pos, 1.0));
+
+    // Apply RAAN rotation (around z-axis)
+    glm::dmat4 rotOmega = glm::rotate(glm::dmat4(1.0), omega, glm::dvec3(0.0, 1.0, 0.0));
+    pos = glm::dvec3(rotOmega * glm::dvec4(pos, 1.0));
+
+    orbitPath.push_back(pos);
   }
-  else // Parabolic or hyperbolic - use current radius as approximation
-  {
-    semiMajorAxis = r;
-  }
-
-  // Orbital period: T = 2π√(a³/μ)
-  double orbitalPeriod = 2.0 * PI * sqrt((semiMajorAxis * semiMajorAxis * semiMajorAxis) / mu);
-
-  // Simulate one complete orbit
-  double timeStep = orbitalPeriod / numPoints;
-
-  // Save current state
-  glm::dvec3 savedPos = position;
-  glm::dvec3 savedVel = velocity;
-
-  // Simulate forward (numPoints + 1 to ensure that the full circle is connected)
-  for (int i = 0; i <= numPoints; ++i)
-  {
-    orbitPath.push_back(position);
-
-    // Use the same acceleration model as update() for consistency
-    glm::dvec3 acceleration = calculateAcceleration(position, velocity, earthCenter, earthMass, sunPosition, moonPosition);
-
-    // Simple Euler integration for orbit path (RK4 would be slower and orbit path is just visual)
-    velocity += acceleration * timeStep;
-    position += velocity * timeStep;
-  }
-
-  // Restore original state
-  position = savedPos;
-  velocity = savedVel;
 }
 
 void Satellite::calculateFootprint(const glm::dvec3 &earthCenter, int numPoints)
@@ -520,7 +513,7 @@ glm::dvec3 Satellite::computeControlTorqueLQR(const glm::dvec3 &attitudeError, d
   double I_avg = (inertiaTensor.x + inertiaTensor.y + inertiaTensor.z) / 3.0;
 
   // Compute simplified LQR gains
-  double K_att = sqrt(Q_att * I_avg / R);    // Gain for attitude error
+  double K_att = sqrt(Q_att * I_avg / R);     // Gain for attitude error
   double K_omega = sqrt(Q_omega * I_avg / R); // Gain for angular velocity
 
   // LQR control law: τ = -K_att * e_att - K_omega * ω
@@ -654,14 +647,16 @@ void Satellite::propagateAttitudeDynamics(double deltaTime, const glm::dvec3 &ex
   //   dq/dt = 0.5 * Ω(ω) * q             (quaternion kinematics)
 
   // Lambda function to compute angular acceleration from state
-  auto computeAngularAccel = [this, &externalTorque](const glm::dvec3 &omega) -> glm::dvec3 {
+  auto computeAngularAccel = [this, &externalTorque](const glm::dvec3 &omega) -> glm::dvec3
+  {
     glm::dvec3 angularMom = inertiaTensor * omega;
     glm::dvec3 gyroTorque = glm::cross(omega, angularMom);
     return (externalTorque - gyroTorque) / inertiaTensor;
   };
 
   // Lambda function to compute quaternion derivative
-  auto computeQuatDot = [](const glm::dquat &q, const glm::dvec3 &omega) -> glm::dquat {
+  auto computeQuatDot = [](const glm::dquat &q, const glm::dvec3 &omega) -> glm::dquat
+  {
     glm::dquat omegaQuat(0.0, omega.x, omega.y, omega.z);
     return 0.5 * omegaQuat * q;
   };

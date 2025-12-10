@@ -1,7 +1,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// Structure to hold orbit information
 struct Orbit
 {
   double a;     // Semimajor axis (meters)

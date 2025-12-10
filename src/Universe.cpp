@@ -38,25 +38,21 @@ void Universe::addSatellite(std::shared_ptr<Satellite> satellite)
 }
 
 std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
+    const Orbit orbit,
     const glm::dvec3 &position,
     const glm::dvec3 &velocity,
     const glm::vec3 &color,
     int planeId,
     int indexInPlane)
 {
-  auto satellite = std::make_shared<Satellite>(position, velocity, color, planeId, indexInPlane);
-
+  auto satellite = std::make_shared<Satellite>(orbit, position, velocity, color, planeId, indexInPlane);
   // Enable ADCS with reaction wheels
   satellite->enableReactionWheels(true);
   satellite->setControlMode(AttitudeControlMode::TARGET_TRACKING);
   satellite->setControlAlgorithm(ControlAlgorithm::PID);
-  // satellite->setControlAlgorithm(ControlAlgorithm::MPC);
 
-  // Calculate complete orbital path
-  satellite->calculateFullOrbit(earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition(), 120);
-
-  // Calculate footprint circle on Earth's surface
-  satellite->calculateFootprint(earth->getPosition(), 60);
+  // Calculate and visualize the orbital path
+  satellite->calculateOrbitPath(100);
 
   return satellite;
 }
@@ -171,6 +167,8 @@ void Universe::addGPSConstellation()
   int numSatellites = 24;
   int numSatellitesPerPlane = numSatellites / numPlanes;
 
+  Orbit orbit;
+
   for (int plane = 0; plane < numPlanes; ++plane)
   {
     double raan = (2.0 * PI * plane) / numPlanes;
@@ -200,8 +198,13 @@ void Universe::addGPSConstellation()
       position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
       velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
 
+      // Create orbit object
+      // GPS uses circular orbits (e=0), argument of perigee and true anomaly not used for circular orbits
+      orbit = Orbit{orbitalRadius, 0.0, inclination, raan, 0.0, trueAnomaly};
+
       // Create satellite with orbit and footprint
       auto satellite = createSatelliteWithOrbit(
+          orbit,
           position,
           velocity,
           glm::vec3(0.3f, 0.9f, 0.0f), // Bright cyan color
@@ -214,34 +217,14 @@ void Universe::addGPSConstellation()
   }
 }
 
-void Universe::addGEOSatellite()
-{
-  // Calculate GEO orbit parameters
-  double orbitalRadius = EARTH_RADIUS + GEO_ALTITUDE;            // Distance from Earth center
-  double orbitalVelocity = sqrt(G * EARTH_MASS / orbitalRadius); // Circular orbit velocity
-
-  // Start satellite at (orbital radius, 0, 0) with velocity in +Z direction
-  glm::dvec3 position(orbitalRadius, 0.0, 0.0);
-  glm::dvec3 velocity(0.0, 0.0, -orbitalVelocity);
-
-  // Create satellite with orbit and footprint
-  auto satellite = createSatelliteWithOrbit(
-      position,
-      velocity,
-      glm::vec3(0.3f, 0.9f, 1.0f),
-      -1, // planeId (-1 for GEO satellites)
-      0   // indexInPlane
-  );
-
-  satellites.push_back(satellite);
-}
-
 void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
 {
   // Starlink-like parameters
   double orbitalRadius = EARTH_RADIUS + LEO_ALTITUDE;
   double orbitalVelocity = sqrt(G * EARTH_MASS / orbitalRadius);
   double inclination = 53.0 * PI / 180.0; // 53 degrees inclination (typical for Starlink)
+
+  Orbit orbit;
 
   // Create satellites in multiple orbital planes
   for (int plane = 0; plane < numPlanes; ++plane)
@@ -277,8 +260,13 @@ void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
       position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
       velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
 
+      // Create orbit object
+      // Starlink uses circular orbits (e=0), argument of perigee not used for circular orbits
+      orbit = Orbit{orbitalRadius, 0.0, inclination, raan, 0.0, trueAnomaly};
+
       // Create satellite with orbit and footprint
       auto satellite = createSatelliteWithOrbit(
+          orbit,
           position,
           velocity,
           glm::vec3(0.3f, 0.9f, 1.0f), // Bright cyan color
@@ -357,8 +345,13 @@ void Universe::addMolniyaConstellation(int numSatellites)
     position = glm::dvec3(raanMatrix * glm::dvec4(position, 1.0));
     velocity = glm::dvec3(raanMatrix * glm::dvec4(velocity, 0.0));
 
+    // Create orbit object
+    // Molniya uses elliptical orbits with argument of perigee at 270° (apogee over northern hemisphere)
+    Orbit orbit{semiMajorAxis, eccentricity, inclination, raan, argOfPerigee, trueAnomaly};
+
     // Create satellite with orbit and footprint
     auto satellite = createSatelliteWithOrbit(
+        orbit,
         position,
         velocity,
         glm::vec3(1.0f, 0.5f, 0.2f), // Orange/red color for Molniya

@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
+#include "Config.h"
 
 // Attitude control modes
 enum class AttitudeControlMode
@@ -20,21 +21,21 @@ enum class AttitudeControlMode
 // Control algorithm types for reaction wheels
 enum class ControlAlgorithm
 {
-  PID,  // PID controller (default)
-  LQR,  // Linear Quadratic Regulator
-  MPC   // Model Predictive Control
+  PID, // PID controller (default)
+  LQR, // Linear Quadratic Regulator
+  MPC  // Model Predictive Control
 };
 
 class Satellite
 {
 public:
-  Satellite(const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0);
+  Satellite(const Orbit orbit, const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0);
 
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
 
   // Calculate complete orbital path (full orbit prediction)
-  void calculateFullOrbit(const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition, int numPoints = 100);
+  void calculateOrbitPath(int numPoints = 100);
 
   // ADCS Control Loop (mirrors flight software architecture)
   void adcsControlLoop(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
@@ -120,10 +121,6 @@ public:
     resetIntegralError();
   }
 
-  // Clear and rebuild orbit path
-  void clearOrbitPath() { orbitPath.clear(); }
-  void addToOrbitPath(const glm::dvec3 &pos) { orbitPath.push_back(pos); }
-
 private:
   // ========== ADCS FLIGHT SOFTWARE METHODS ==========
   // These methods mirror the structure of actual satellite ADCS code
@@ -159,6 +156,7 @@ private:
   glm::dvec3 calculateSolarRadiationPressure(const glm::dvec3 &pos, const glm::dvec3 &sunPos, const glm::dvec3 &earthCenter) const;
 
   // Orbital state
+  Orbit orbit;         // Orbit paramters
   glm::dvec3 position; // Position in meters (x, y, z)
   glm::dvec3 velocity; // Velocity in meters/second
   glm::vec3 color;     // RGB color for rendering
@@ -194,7 +192,7 @@ private:
 
   // Attitude control state
   AttitudeControlMode controlMode = AttitudeControlMode::NONE;
-  ControlAlgorithm controlAlgorithm = ControlAlgorithm::PID; // Default controller
+  ControlAlgorithm controlAlgorithm = ControlAlgorithm::PID;    // Default controller
   glm::dquat targetQuaternion = glm::dquat(1.0, 0.0, 0.0, 0.0); // Target orientation (identity)
   glm::dvec3 targetPoint = glm::dvec3(0.0);                     // Target point for tracking mode
 
@@ -214,8 +212,8 @@ private:
   glm::dmat3 lqrK = glm::dmat3(0.0);  // LQR gain matrix (computed)
 
   // MPC controller parameters
-  int mpcHorizon = 10;             // Prediction horizon (timesteps)
-  double mpcTimestep = 0.1;        // MPC internal timestep (s)
+  int mpcHorizon = 10;                // Prediction horizon (timesteps)
+  double mpcTimestep = 0.1;           // MPC internal timestep (s)
   glm::dmat3 mpcQ = glm::dmat3(10.0); // State cost matrix
   glm::dmat3 mpcR = glm::dmat3(0.1);  // Control cost matrix
 

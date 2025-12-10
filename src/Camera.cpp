@@ -40,7 +40,7 @@ void Camera::adjustDistance(float delta)
   distance += delta;
 
   // Clamp distance to reasonable values
-  distance = glm::clamp(distance, 1e7f, 1e9f); // 10,000 km to 1,000,000 km
+  distance = glm::clamp(distance, 1e5f, 1e9f); // 10,000 km to 1,000,000 km
 
   updatePosition();
 }
