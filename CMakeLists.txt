@@ -23,6 +23,10 @@ endif()
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/external)
 
+# ImGui setup
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
+
 # Find GLEW
 find_package(GLEW REQUIRED)
 
@@ -52,6 +56,17 @@ add_executable(simulation
     src/Renderer.cpp
     src/Config.cpp
     src/OBJMesh.cpp
+
+    # ImGui core
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+
+    # ImGui backends
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
 # Link libraries

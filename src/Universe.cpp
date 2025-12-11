@@ -13,28 +13,13 @@
 Universe::Universe()
 {
   /* CUSTOMIZE SIMULATION HERE */
-
   initializeEarthSunAndMoon();
-
   addGPSConstellation();
-
   addGEOConstellation();
-
-  // Add Starlink-like LEO constellation
-  addStarlinkConstellation(8, 4); // 2 orbital planes, 2 satellites per plane = 4 satellites
-
+  addStarlinkConstellation(8, 4); // numPlanes, satsPerPlane
   addReflectConstellation();
-
-  // Add Molniya constellation (highly elliptical orbit for high latitude coverage)
   addMolniyaConstellation(3); // 3 satellites for continuous coverage
-
-  // Add ground stations for power reception at major cities
   addGroundStations();
-}
-
-void Universe::addBody(std::shared_ptr<CelestialBody> body)
-{
-  bodies.push_back(body);
 }
 
 std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
@@ -265,7 +250,7 @@ void Universe::addReflectConstellation(int numSatellites)
     double trueAnomaly = (2.0 * PI * sat) / numSatellites;
 
     Orbit orbit{semiMajorAxis, 0.0, inclination, 0.0, 0.0, trueAnomaly};
-    std::string satName = "Reflect" + std::to_string(sat);
+    std::string satName = "Reflect-" + std::to_string(sat);
 
     auto satellite = createSatelliteWithOrbit(
         orbit,
@@ -395,4 +380,30 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
       }
     }
   }
+}
+
+glm::dvec3 Universe::getObjectPosition(void *object) const
+{
+  if (!object)
+    return glm::dvec3(0.0);
+
+  // Check if it's one of the celestial bodies
+  for (const auto &body : bodies)
+  {
+    if (body.get() == object)
+    {
+      return body->getPosition();
+    }
+  }
+
+  // Check if it's a satellite
+  for (const auto &sat : satellites)
+  {
+    if (sat.get() == object)
+    {
+      return sat->getPosition();
+    }
+  }
+
+  return glm::dvec3(0.0);
 }

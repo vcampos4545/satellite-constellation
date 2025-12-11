@@ -43,7 +43,7 @@ cmake ..
 make
 
 # Run
-./constelation
+./simulation
 ```
 
 ### Build Options
@@ -96,6 +96,7 @@ Exponential atmosphere model with drag force opposing velocity:
 $$\rho(h) = \rho_0 e^{-h/H}$$
 
 where:
+
 - $\rho_0 = 1.225 \text{ kg/m}^3$ (sea level density)
 - $H = 8500 \text{ m}$ (scale height)
 - $h$ = altitude above Earth surface
@@ -105,6 +106,7 @@ $$\vec{F}_{\text{drag}} = -\frac{1}{2} \rho(h) v^2 C_d A \hat{v}$$
 $$\vec{a}_{\text{drag}} = \frac{\vec{F}_{\text{drag}}}{m}$$
 
 where:
+
 - $C_d = 2.2$ (drag coefficient)
 - $A = 10 \text{ m}^2$ (cross-sectional area)
 - $m = 260 \text{ kg}$ (satellite mass)
@@ -123,6 +125,7 @@ $$\vec{F}_{\text{srp}} = P(r) A C_r \hat{s}$$
 $$\vec{a}_{\text{srp}} = \frac{\vec{F}_{\text{srp}}}{m}$$
 
 where:
+
 - $C_r = 1.3$ (reflectivity coefficient: 1.0 = absorbing, 2.0 = perfect mirror)
 - $\hat{s}$ = sun direction unit vector
 - Eclipse Model: Cylindrical shadow approximation
@@ -174,6 +177,7 @@ $$k_4 = f(t + \Delta t, y + k_3 \Delta t)$$
 $$y_{\text{new}} = y + \frac{\Delta t}{6}(k_1 + 2k_2 + 2k_3 + k_4)$$
 
 where:
+
 - $y = [\vec{r}, \vec{v}]$ (position, velocity)
 - $f(t, y) = [\vec{v}, \vec{a}]$ (velocity, acceleration)
 
@@ -209,7 +213,7 @@ The satellite implements a complete ADCS control loop mirroring flight software 
         │  • Sun Sensors (1-2 axis)                         │
         │  • Magnetometers (2 axis)                         │
         │  → Kalman Filter → q_current, ω_current           │
-        │                                                    │
+        │                                                   │
         │  Simulation: Perfect knowledge (q, ω)             │
         └───────────────────────────────────────────────────┘
                                     │
@@ -218,9 +222,9 @@ The satellite implements a complete ADCS control loop mirroring flight software 
         │  STEP 2: COMPUTE TARGET ATTITUDE                  │
         │  ────────────────────────────                     │
         │  Mode Selection:                                  │
-        │  • NADIR_POINTING: q_target aligns Z → -r̂        │
+        │  • NADIR_POINTING: q_target aligns Z → -r̂         │
         │  • SUN_POINTING: q_target aligns Z → sun          │
-        │  • VELOCITY_POINTING: q_target aligns X → v̂      │
+        │  • VELOCITY_POINTING: q_target aligns X → v̂       │
         │  • TARGET_TRACKING: q_target aligns Z → target    │
         │  • INERTIAL_HOLD: q_target = const                │
         │  • DETUMBLE: minimize |ω|                         │
@@ -231,7 +235,7 @@ The satellite implements a complete ADCS control loop mirroring flight software 
         │  STEP 3: COMPUTE ATTITUDE ERROR                   │
         │  ───────────────────────────                      │
         │  q_error = q_target ⊗ q_current⁻¹                 │
-        │                                                    │
+        │                                                   │
         │  Convert to axis-angle:                           │
         │  θ_error = 2*atan2(|[qx,qy,qz]|, qw)              │
         │  e = normalize([qx,qy,qz]) * θ_error              │
@@ -242,13 +246,13 @@ The satellite implements a complete ADCS control loop mirroring flight software 
         │  STEP 4: PID CONTROLLER                           │
         │  ───────────────────                              │
         │  τ = Kp*e + Ki*∫e*dt + Kd*(-ω)                    │
-        │                                                    │
+        │                                                   │
         │  Proportional: Kp*e (stiffness)                   │
         │  Integral: Ki*∫e (eliminate steady-state error)   │
         │  Derivative: -Kd*ω (damping)                      │
-        │                                                    │
+        │                                                   │
         │  Auto-tuning (based on desired settling time):    │
-        │  ωn = 4/(ζ*ts), Kp = I*ωn², Kd = 2*ζ*I*ωn        │
+        │  ωn = 4/(ζ*ts), Kp = I*ωn², Kd = 2*ζ*I*ωn         │
         │  Ki = 0.01*Kp (with anti-windup)                  │
         └───────────────────────────────────────────────────┘
                                     │
@@ -282,10 +286,10 @@ The satellite implements a complete ADCS control loop mirroring flight software 
         │  ──────────────────────────────────────           │
         │  Euler's Rigid Body Equations:                    │
         │  I*α = τ_external - ω × (I*ω)                     │
-        │                                                    │
+        │                                                   │
         │  Quaternion Kinematics:                           │
-        │  q̇ = ½*Ω(ω)*q = ½*[0,ω]⊗q                        │
-        │                                                    │
+        │  q̇ = ½*Ω(ω)*q = ½*[0,ω]⊗q                         │
+        │                                                   │
         │  Integration (Euler method):                      │
         │  ω_new = ω + α*dt                                 │
         │  q_new = q + q̇*dt                                 │
@@ -319,12 +323,14 @@ $$\dot{q} = \frac{1}{2} \Omega(\vec{\omega}) q$$
 
 where
 
-$$\Omega(\vec{\omega}) = \begin{bmatrix}
+$$
+\Omega(\vec{\omega}) = \begin{bmatrix}
 0 & -\omega_x & -\omega_y & -\omega_z \\
 \omega_x & 0 & \omega_z & -\omega_y \\
 \omega_y & -\omega_z & 0 & \omega_x \\
 \omega_z & \omega_y & -\omega_x & 0
-\end{bmatrix}$$
+\end{bmatrix}
+$$
 
 Simplified: $\dot{q} = \frac{1}{2} [0, \vec{\omega}] \otimes q$
 
@@ -333,6 +339,7 @@ Simplified: $\dot{q} = \frac{1}{2} [0, \vec{\omega}] \otimes q$
 $$I \vec{\alpha} = \vec{\tau}_{\text{external}} - \vec{\omega} \times (I\vec{\omega})$$
 
 where:
+
 - $I = [I_{xx}, I_{yy}, I_{zz}] = [50, 50, 20] \text{ kg·m}^2$ (diagonal inertia tensor)
 - $\vec{\alpha} = \frac{d\vec{\omega}}{dt}$ (angular acceleration)
 - $\vec{\omega}$ = angular velocity vector
@@ -345,11 +352,13 @@ Gyroscopic torque: $\vec{\tau}_{\text{gyro}} = -\vec{\omega} \times (I\vec{\omeg
 $$\vec{\tau}_{\text{control}} = K_p \vec{e}_{\text{att}} + K_i \int \vec{e}_{\text{att}} \, dt + K_d (-\vec{\omega})$$
 
 Auto-tuned gains:
+
 - Proportional gain: $K_p = I \omega_n^2$ (N·m/rad)
 - Derivative gain: $K_d = 2\zeta I \omega_n$ (N·m·s/rad)
 - Integral gain: $K_i = 0.01 K_p$ (N·m/(rad·s))
 
 where:
+
 - $\omega_n = \frac{4}{\zeta t_s}$ (natural frequency)
 - $\zeta$ = 0.7-0.9 (damping ratio)
 - $t_s$ = 20-60 s (settling time)
@@ -362,6 +371,7 @@ $$\vec{\tau}_{\text{spacecraft}} = -\vec{\tau}_{\text{wheel}} \quad \text{(Newto
 $$\vec{h}_{\text{wheel}} = \int \vec{\tau}_{\text{wheel}} \, dt \quad \text{(momentum accumulation)}$$
 
 Constraints:
+
 - $|\tau_{\text{wheel}}| < \tau_{\max} = 0.1 \text{ N·m}$ (per wheel)
 - $|h_{\text{wheel}}| < h_{\max} = 10 \text{ N·m·s}$ (per wheel)
 - When saturated: Use magnetorquers for desaturation
@@ -378,7 +388,7 @@ $$\vec{\tau} = \vec{m} \times \vec{B} \quad \text{(generated torque)}$$
 
 Note: Can only generate torque perpendicular to $\vec{B}$-field. Effective for slow detumbling, not precision pointing.
 
-**LQR Control (Linear Quadratic Regulator)** *(Available in simulation)*
+**LQR Control (Linear Quadratic Regulator)** _(Available in simulation)_
 
 Optimal control minimizing cost function:
 
@@ -388,26 +398,27 @@ where $\vec{x} = [\vec{e}_{\text{att}}, \vec{\omega}]$ (state), $\vec{u} = \vec{
 
 Control law: $\vec{u} = -K \vec{x}$ where $K$ is computed from algebraic Riccati equation.
 
-**MPC Control (Model Predictive Control)** *(Available in simulation)*
+**MPC Control (Model Predictive Control)** _(Available in simulation)_
 
 Solves optimization problem at each timestep over prediction horizon:
 
 $$\min_{\vec{u}(t)} \sum_{k=0}^{N} \left(\|\vec{x}(k)\|_Q^2 + \|\vec{u}(k)\|_R^2\right)$$
 
 subject to:
+
 - Dynamics: $\vec{x}(k+1) = f(\vec{x}(k), \vec{u}(k))$
 - Constraints: $|\vec{\tau}| \leq \tau_{\max}$, $|\vec{h}_{\text{wheel}}| \leq h_{\max}$
 
 #### Control Modes
 
-| Mode | Description | Target Alignment | Use Case |
-|------|-------------|------------------|----------|
-| **NADIR_POINTING** | Z-axis points to Earth center | Z-axis → -r̂ | Earth observation, communications |
-| **SUN_POINTING** | Z-axis points to Sun | Z-axis → sun | Solar panel alignment |
-| **VELOCITY_POINTING** | X-axis along velocity | X-axis → v̂ | Aerodynamic stability |
-| **TARGET_TRACKING** | Z-axis points to ground target | Z-axis → target | Ground station comms |
-| **INERTIAL_HOLD** | Maintain fixed orientation | q = constant | Star tracking, astronomy |
-| **DETUMBLE** | Reduce angular velocity | minimize \|ω\| | Post-deployment stabilization |
+| Mode                  | Description                    | Target Alignment | Use Case                          |
+| --------------------- | ------------------------------ | ---------------- | --------------------------------- |
+| **NADIR_POINTING**    | Z-axis points to Earth center  | Z-axis → -r̂      | Earth observation, communications |
+| **SUN_POINTING**      | Z-axis points to Sun           | Z-axis → sun     | Solar panel alignment             |
+| **VELOCITY_POINTING** | X-axis along velocity          | X-axis → v̂       | Aerodynamic stability             |
+| **TARGET_TRACKING**   | Z-axis points to ground target | Z-axis → target  | Ground station comms              |
+| **INERTIAL_HOLD**     | Maintain fixed orientation     | q = constant     | Star tracking, astronomy          |
+| **DETUMBLE**          | Reduce angular velocity        | minimize \|ω\|   | Post-deployment stabilization     |
 
 ### Footprint Calculation
 
@@ -416,6 +427,7 @@ The satellite's ground coverage footprint is computed geometrically:
 $$\lambda_0 = \arccos\left(\frac{R_{\text{earth}}}{r_{\text{sat}}}\right) \quad \text{(horizon angle)}$$
 
 For each point on footprint circle:
+
 1. Start with nadir direction: $\hat{n} = \frac{\vec{r}_{\text{sat}} - \vec{r}_{\text{earth}}}{|\vec{r}_{\text{sat}} - \vec{r}_{\text{earth}}|}$
 2. Find perpendicular vectors forming horizon plane
 3. Rotate horizon vector around nadir axis: $\theta \in [0, 2\pi]$
@@ -436,6 +448,7 @@ This project is for educational and simulation purposes.
 ### Earth Texture
 
 1. Download an Earth texture from:
+
    - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
    - [NASA Visible Earth](https://visibleearth.nasa.gov/)
 
@@ -446,6 +459,7 @@ This project is for educational and simulation purposes.
 ### Moon Texture
 
 1. Download a Moon texture from:
+
    - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
    - [NASA CGI Moon Kit](https://svs.gsfc.nasa.gov/cgi-bin/details.cgi?aid=4720)
 

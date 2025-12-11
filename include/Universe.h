@@ -12,9 +12,6 @@ class Universe
 public:
   Universe();
 
-  // Add celestial bodies
-  void addBody(std::shared_ptr<CelestialBody> body);
-
   // Get all bodies
   const std::vector<std::shared_ptr<CelestialBody>> &getBodies() const { return bodies; }
   const std::vector<std::shared_ptr<Satellite>> &getSatellites() const { return satellites; }
@@ -24,30 +21,23 @@ public:
   std::shared_ptr<CelestialBody> getEarth() const { return earth; }
   std::shared_ptr<CelestialBody> getSun() const { return sun; }
   std::shared_ptr<CelestialBody> getMoon() const { return moon; }
-  const std::vector<glm::dvec3> &getMoonOrbitPath() const { return moonOrbitPath; }
 
   // Initialize with Earth and Sun
   void initializeEarthSunAndMoon();
 
-  // Initialize GPS Constellation
   void addGPSConstellation();
-
   void addGEOConstellation(int numSatellites = 10);
-
-  // Initialize a Starlink-like LEO constellation
   void addStarlinkConstellation(int numPlanes = 6, int satellitesPerPlane = 10);
-
-  // Initialize a reflect orbital like constellation (SSO)
   void addReflectConstellation(int numSatellites = 10);
-
-  // Initialize a Molniya constellation (highly elliptical orbit for high latitude coverage)
   void addMolniyaConstellation(int numSatellites = 3);
 
-  // Initialize ground stations for power reception at major cities
   void addGroundStations();
 
   // Update physics with sub-stepping for stability
   void update(double deltaTime, double maxPhysicsStep = 0.1);
+
+  // Get position of any body by pointer (for camera tracking)
+  glm::dvec3 getObjectPosition(void *object) const;
 
 private:
   // Helper method to create a satellite from orbital elements
@@ -65,8 +55,6 @@ private:
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;
   std::shared_ptr<CelestialBody> moon;
-  double moonOrbitAngle = 0.0;           // Current angle of moon's orbit around Earth
-  std::vector<glm::dvec3> moonOrbitPath; // Visualization of moon's orbit path
 };
 
 #endif // UNIVERSE_H

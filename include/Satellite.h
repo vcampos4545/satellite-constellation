@@ -102,6 +102,16 @@ public:
   void enableMagnetorquers(bool enable) { hasMagnetorquers = enable; }
   void enableCMGs(bool enable) { hasCMGs = enable; }
 
+  // Power system getters
+  double getBatteryCharge() const { return batteryCharge; }
+  double getBatteryCapacity() const { return batteryCapacity; }
+  double getBatteryPercentage() const { return (batteryCharge / batteryCapacity) * 100.0; }
+  double getPowerGeneration() const { return currentPowerGeneration; }
+  double getPowerConsumption() const { return currentPowerConsumption; }
+  double getNetPower() const { return currentPowerGeneration - currentPowerConsumption; }
+  bool isInEclipse() const { return inEclipse; }
+  bool hasSufficientPower() const { return batteryCharge > (batteryCapacity * 0.1); } // >10% battery
+
   // PID control gains
   void setProportionalGain(double kp) { proportionalGain = kp; }
   void setIntegralGain(double ki) { integralGain = ki; }
@@ -162,6 +172,13 @@ private:
   // ========== PROPULSION METHODS ==========
   void performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter);
   glm::dvec3 calculateThrustAcceleration(const glm::dvec3 &thrustDirection, double thrustMagnitude);
+
+  // ========== POWER MANAGEMENT METHODS ==========
+  void updatePowerSystem(double deltaTime, const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter);
+  double calculateSolarFlux(const glm::dvec3 &sunPosition) const;
+  bool checkEclipse(const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter) const;
+  double calculatePowerConsumption() const;
+  double calculatePowerGeneration(double solarFlux, const glm::dvec3 &sunDirection) const;
 
   glm::dvec3 calculateGravitationalAcceleration(const glm::dvec3 &pos, const glm::dvec3 &bodyPos, double bodyMass) const;
   glm::dvec3 calculateZonalHarmonicsAcceleration(const glm::dvec3 &pos, const glm::dvec3 &earthCenter, double earthMass) const;
@@ -245,6 +262,32 @@ private:
   double mpcTimestep = 0.1;           // MPC internal timestep (s)
   glm::dmat3 mpcQ = glm::dmat3(10.0); // State cost matrix
   glm::dmat3 mpcR = glm::dmat3(0.1);  // Control cost matrix
+
+  // ========== POWER SYSTEM ==========
+  // Battery properties (Lithium-ion typical for satellites)
+  double batteryCapacity = 100.0;      // Battery capacity in Watt-hours (Wh)
+  double batteryCharge = 100.0;        // Current battery charge (Wh) - start fully charged
+  double batteryVoltage = 28.0;        // Battery bus voltage (V) - typical satellite bus voltage
+  double batteryMinCharge = 10.0;      // Minimum safe charge (Wh) - 10% reserve
+  double batteryChargeEfficiency = 0.95; // Charging efficiency (95%)
+  double batteryDischargeEfficiency = 0.98; // Discharge efficiency (98%)
+
+  // Solar panel properties
+  double solarPanelArea = 20.0;        // Total solar panel area (m²) - typical for small sat
+  double solarPanelEfficiency = 0.30;  // Solar cell efficiency (30% - multi-junction cells)
+  double solarPanelDegradation = 1.0;  // Panel degradation factor (1.0 = new, decreases over time)
+
+  // Power consumption rates (Watts)
+  double basePowerConsumption = 50.0;  // Avionics, computer, comms baseline (W)
+  double reactionWheelPower = 10.0;    // Power per active reaction wheel (W)
+  double magnetorquerPower = 5.0;      // Power for magnetorquers (W)
+  double cmgPower = 15.0;              // Power per CMG (W)
+  double thrusterPower = 250.0;        // Power for Hall effect thruster (W)
+
+  // Current power state
+  double currentPowerGeneration = 0.0; // Current power generation (W)
+  double currentPowerConsumption = 0.0; // Current power consumption (W)
+  bool inEclipse = false;              // Whether satellite is in Earth's shadow
 
   std::vector<glm::dvec3> footprintCircle; // Positions for drawing footprint circle
   std::vector<glm::dvec3> orbitPath;       // Historical positions for drawing orbit

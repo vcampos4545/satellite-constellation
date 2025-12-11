@@ -37,17 +37,17 @@ public:
   bool initialize();
 
   // Main render function - renders entire scene
-  void render(const Universe &universe, const Camera &camera, int windowWidth, int windowHeight);
+  void render(const Universe &universe, const Camera &camera, int windowWidth, int windowHeight,
+              const class VisualizationState &vizState, const Satellite *selectedSatellite = nullptr);
 
   // Render individual components
   void renderStarBackground(const Camera &camera);
   void renderCelestialBody(const std::shared_ptr<CelestialBody> &body, bool isEarth, bool isMoon, bool isSun);
-  void renderSatellites(const std::vector<std::shared_ptr<Satellite>> &satellites);
+  void renderSatellites(const std::vector<std::shared_ptr<Satellite>> &satellites,
+                        const class VisualizationState &vizState,
+                        const Satellite *selectedSatellite = nullptr);
   void renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations);
   void renderPowerBeams(const std::vector<std::shared_ptr<GroundStation>> &groundStations, const Satellite *selectedSatellite);
-  void renderOrbitPaths(const std::vector<std::shared_ptr<Satellite>> &satellites);
-  void renderFootprints(const std::vector<std::shared_ptr<Satellite>> &satellites, const Satellite *selectedSatellite);
-  void renderAttitudeVectors(const std::vector<std::shared_ptr<Satellite>> &satellites);
   void renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight);
 
   // Getters for checking initialization status

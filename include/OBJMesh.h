@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <memory>
+#include "Texture.h"
 
 /**
  * Material properties from MTL file
@@ -13,11 +15,12 @@
 struct Material
 {
   std::string name;
-  glm::vec3 ambient;      // Ka - Ambient color
-  glm::vec3 diffuse;      // Kd - Diffuse color
-  glm::vec3 specular;     // Ks - Specular color
-  float shininess;        // Ns - Shininess exponent
-  std::string diffuseMap; // map_Kd - Diffuse texture filename (optional)
+  glm::vec3 ambient;                        // Ka - Ambient color
+  glm::vec3 diffuse;                        // Kd - Diffuse color
+  glm::vec3 specular;                       // Ks - Specular color
+  float shininess;                          // Ns - Shininess exponent
+  std::string diffuseMap;                   // map_Kd - Diffuse texture filename (optional)
+  std::shared_ptr<Texture> diffuseTexture; // Loaded diffuse texture
 
   Material()
       : name("default"),
@@ -25,7 +28,8 @@ struct Material
         diffuse(0.8f, 0.8f, 0.8f),
         specular(0.0f, 0.0f, 0.0f),
         shininess(0.0f),
-        diffuseMap("")
+        diffuseMap(""),
+        diffuseTexture(nullptr)
   {
   }
 };

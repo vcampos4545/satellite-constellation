@@ -357,6 +357,33 @@ bool OBJMesh::loadMTL(const std::string &filepath)
   }
 
   file.close();
+
+  // Load textures for all materials
+  // Extract base directory from MTL filepath
+  size_t lastSlash = filepath.find_last_of("/\\");
+  std::string baseDir = (lastSlash != std::string::npos) ? filepath.substr(0, lastSlash + 1) : "";
+
+  for (auto &matPair : materials)
+  {
+    Material &mat = matPair.second;
+    if (!mat.diffuseMap.empty())
+    {
+      // Create texture and try to load it
+      auto texture = std::make_shared<Texture>();
+      std::string texturePath = baseDir + mat.diffuseMap;
+
+      if (texture->load(texturePath))
+      {
+        mat.diffuseTexture = texture;
+        std::cout << "  Loaded texture: " << texturePath << std::endl;
+      }
+      else
+      {
+        std::cerr << "  Failed to load texture: " << texturePath << std::endl;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -379,19 +406,34 @@ void OBJMesh::draw(Shader &shader) const
       continue;
     }
 
-    // Note: Material properties are not currently set because the sphere shader
-    // uses "objectColor" instead of separate material components.
-    // If using a dedicated mesh shader with material support, uncomment below:
-    //
-    // if (!group.materialName.empty())
-    // {
-    //   auto it = materials.find(group.materialName);
-    //   if (it != materials.end())
-    //   {
-    //     const Material &mat = it->second;
-    //     shader.setVec3("material.diffuse", mat.diffuse);
-    //   }
-    // }
+    // Apply material properties
+    if (!group.materialName.empty())
+    {
+      auto it = materials.find(group.materialName);
+      if (it != materials.end())
+      {
+        const Material &mat = it->second;
+
+        // If material has a texture, use it
+        if (mat.diffuseTexture && mat.diffuseTexture->isLoaded())
+        {
+          shader.setBool("useTexture", true);
+          mat.diffuseTexture->bind(0);
+          shader.setInt("textureSampler", 0);
+        }
+        else
+        {
+          // No texture, use material diffuse color
+          shader.setBool("useTexture", false);
+          shader.setVec3("objectColor", mat.diffuse);
+        }
+      }
+    }
+    else
+    {
+      // No material assigned, disable texture
+      shader.setBool("useTexture", false);
+    }
 
     glDrawElements(GL_TRIANGLES, group.indexCount, GL_UNSIGNED_INT, (void *)(group.startIndex * sizeof(unsigned int)));
   }
