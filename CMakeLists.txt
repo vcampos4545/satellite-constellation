@@ -36,7 +36,7 @@ find_package(OpenGL REQUIRED)
 find_package(glm REQUIRED)
 
 # Add executable
-add_executable(constelation
+add_executable(simulation
     src/main.cpp
     src/CelestialBody.cpp
     src/Universe.cpp
@@ -49,10 +49,13 @@ add_executable(constelation
     src/GroundStation.cpp
     src/LineRenderer.cpp
     src/MathUtils.cpp
+    src/Renderer.cpp
+    src/Config.cpp
+    src/OBJMesh.cpp
 )
 
 # Link libraries
-target_link_libraries(constelation
+target_link_libraries(simulation
     GLEW::GLEW
     glfw
     ${OPENGL_LIBRARIES}
@@ -61,12 +64,13 @@ target_link_libraries(constelation
 
 # On macOS, we need to link against the CoreFoundation framework
 if (APPLE)
-    target_link_libraries(constelation "-framework CoreFoundation")
+    target_link_libraries(simulation "-framework CoreFoundation")
 endif()
 
 # Copy resources to build directory
 file(COPY shaders DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY textures DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY models DESTINATION ${CMAKE_BINARY_DIR})
 
 # Print build info
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")

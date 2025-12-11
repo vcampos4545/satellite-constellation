@@ -9,9 +9,16 @@ const double G = 6.67430e-11; // m^3 kg^-1 s^-2
 
 // Earth constants
 const double EARTH_MASS = 5.972e24;                                          // kg
-const double EARTH_RADIUS = 6.371e6;                                         // meters
+const double EARTH_RADIUS = 6.371e6;                                         // meters (mean radius)
+const double EARTH_EQUATORIAL_RADIUS = 6.378137e6;                           // meters (equatorial radius for J2 calculations)
 const double EARTH_ROTATION_ANGULAR_VELOCITY = 360.0 / (24.0 * 60.0 * 60.0); // Radians per second
 const double EARTH_AXIAL_TILT = 23.5;                                        // degrees
+
+// Earth gravity field zonal harmonic coefficients (dimensionless)
+// These describe Earth's non-spherical mass distribution
+const double J2 = 1.08263e-3;  // Oblateness (equatorial bulge) - dominant term
+const double J3 = -2.54e-6;    // Pear-shaped asymmetry (North-South)
+const double J4 = -1.62e-6;    // Higher-order oblateness correction
 
 // Sun constants
 const double SUN_MASS = 1.989e30; // kg

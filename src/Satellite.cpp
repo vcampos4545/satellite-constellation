@@ -3,13 +3,14 @@
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 
-Satellite::Satellite(const Orbit orbit, const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId, int indexInPlane)
+Satellite::Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, const glm::vec3 &color, int planeId, int indexInPlane, const std::string &name)
     : orbit(orbit),
-      position(position),
-      velocity(velocity),
+      position(initPos),
+      velocity(initVel),
       color(color),
       planeId(planeId),
       indexInPlane(indexInPlane),
+      name(name),
       quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion (no rotation)
       angularVelocity(0.0, 0.0, 0.0)  // No initial rotation
 {
@@ -27,6 +28,72 @@ glm::dvec3 Satellite::calculateGravitationalAcceleration(const glm::dvec3 &pos, 
   glm::dvec3 direction = glm::normalize(toBody);
   double accelMagnitude = G * bodyMass / (distance * distance);
   return direction * accelMagnitude;
+}
+
+glm::dvec3 Satellite::calculateZonalHarmonicsAcceleration(const glm::dvec3 &pos, const glm::dvec3 &earthCenter, double earthMass) const
+{
+  // Calculate Earth's non-spherical gravity perturbations (J2, J3, J4)
+  // These account for Earth's oblate shape and mass distribution
+  //
+  // Reference: Vallado, "Fundamentals of Astrodynamics and Applications", 4th Ed.
+  // Chapter 8: Perturbations
+
+  // Position vector relative to Earth center
+  glm::dvec3 r = pos - earthCenter;
+  double r_mag = glm::length(r);
+
+  if (r_mag < EARTH_EQUATORIAL_RADIUS)
+    return glm::dvec3(0.0); // Inside Earth - shouldn't happen
+
+  // Normalized position components
+  double x = r.x / r_mag;
+  double y = r.y / r_mag;
+  double z = r.z / r_mag; // z/r is sin(latitude) in Earth-centered coordinates
+
+  double z2 = z * z;   // (z/r)²
+  double z4 = z2 * z2; // (z/r)⁴
+
+  // Common terms
+  double mu = G * earthMass;
+  double Re = EARTH_EQUATORIAL_RADIUS;
+  double Re_r = Re / r_mag;    // Re/r
+  double Re_r2 = Re_r * Re_r;  // (Re/r)²
+  double Re_r3 = Re_r2 * Re_r; // (Re/r)³
+  double Re_r4 = Re_r3 * Re_r; // (Re/r)⁴
+  double mu_r3 = mu / (r_mag * r_mag * r_mag);
+
+  // ========== J2 PERTURBATION (Oblateness - Equatorial Bulge) ==========
+  // Dominant term: ~1000x larger than J3/J4
+  // Causes RAAN and argument of perigee to precess
+  double j2_factor = -1.5 * J2 * Re_r2 * mu_r3;
+
+  glm::dvec3 accel_J2;
+  accel_J2.x = j2_factor * x * (1.0 - 5.0 * z2);
+  accel_J2.y = j2_factor * y * (1.0 - 5.0 * z2);
+  accel_J2.z = j2_factor * z * (3.0 - 5.0 * z2);
+
+  // ========== J3 PERTURBATION (Pear-Shape - North/South Asymmetry) ==========
+  // Second-order term: Southern hemisphere slightly "heavier"
+  // Important for high-inclination orbits
+  double j3_factor = -0.5 * J3 * Re_r3 * mu_r3;
+
+  glm::dvec3 accel_J3;
+  accel_J3.x = j3_factor * x * (5.0 * z * (7.0 * z2 - 3.0));
+  accel_J3.y = j3_factor * y * (5.0 * z * (7.0 * z2 - 3.0));
+  accel_J3.z = j3_factor * (6.0 * z2 - 7.0 * z4 - 3.0 / 5.0);
+
+  // ========== J4 PERTURBATION (Higher-Order Oblateness) ==========
+  // Third-order term: Additional refinement to oblateness
+  // Small correction to J2 effects
+  double j4_factor = 0.625 * J4 * Re_r4 * mu_r3; // 5/8 = 0.625
+
+  glm::dvec3 accel_J4;
+  accel_J4.x = j4_factor * x * (1.0 - 14.0 * z2 + 21.0 * z4);
+  accel_J4.y = j4_factor * y * (1.0 - 14.0 * z2 + 21.0 * z4);
+  accel_J4.z = j4_factor * z * (5.0 - 70.0 * z2 / 3.0 + 21.0 * z4);
+
+  // Total zonal harmonics acceleration
+  return accel_J2 + accel_J3 + accel_J4;
 }
 
 glm::dvec3 Satellite::calculateDragAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter) const
@@ -100,14 +167,24 @@ glm::dvec3 Satellite::calculateSolarRadiationPressure(const glm::dvec3 &pos, con
 glm::dvec3 Satellite::calculateAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPos, const glm::dvec3 &moonPos) const
 {
   // Calculate all acceleration components
+
+  // Earth gravity: point mass + non-spherical perturbations (J2, J3, J4)
   glm::dvec3 gravAccelEarth = calculateGravitationalAcceleration(pos, earthCenter, earthMass);
+  glm::dvec3 gravAccelEarthJ = calculateZonalHarmonicsAcceleration(pos, earthCenter, earthMass);
+
+  // Third-body perturbations (Moon and Sun)
   glm::dvec3 gravAccelMoon = calculateGravitationalAcceleration(pos, moonPos, MOON_MASS);
   glm::dvec3 gravAccelSun = calculateGravitationalAcceleration(pos, sunPos, SUN_MASS);
+
+  // Non-gravitational perturbations
   glm::dvec3 dragAccel = calculateDragAcceleration(pos, vel, earthCenter);
   glm::dvec3 srpAccel = calculateSolarRadiationPressure(pos, sunPos, earthCenter);
 
   // Total acceleration (all forces combined)
-  return gravAccelEarth + gravAccelMoon + gravAccelSun + dragAccel + srpAccel;
+  // Earth: point mass + J2/J3/J4 perturbations
+  // Third bodies: Moon + Sun
+  // Non-gravitational: Drag + Solar radiation pressure
+  return gravAccelEarth + gravAccelEarthJ + gravAccelMoon + gravAccelSun + dragAccel + srpAccel;
 }
 
 void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition)
@@ -147,6 +224,13 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
   velocity += (deltaTime / 6.0) * (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel);
   position += (deltaTime / 6.0) * (k1_pos + 2.0 * k2_pos + 2.0 * k3_pos + k4_pos);
 
+  // ========== STATION KEEPING ==========
+  // Check if we need to perform orbit maintenance burns
+  if (stationKeepingEnabled && hasThrusters && hasPropellant())
+  {
+    performStationKeeping(deltaTime, earthCenter);
+  }
+
   // ========== ATTITUDE CONTROL SYSTEM ==========
   // Run ADCS control loop (attitude determination and control)
   adcsControlLoop(deltaTime, earthCenter, sunPosition);
@@ -159,41 +243,20 @@ void Satellite::calculateOrbitPath(int numPoints)
 {
   orbitPath.clear();
 
-  // Extract orbital elements
-  double a = orbit.a;         // semimajor axis (meters)
-  double e = orbit.e;         // eccentricity
-  double i = orbit.i;         // inclination (radians)
-  double omega = orbit.omega; // RAAN - Right Ascension of Ascending Node (radians)
-  double w = orbit.w;         // argument of perigee (radians)
-
-  // Calculate orbit points in perifocal frame, then transform to inertial frame
+  // Generate orbit path by computing position at various true anomalies
+  // Uses the same coordinate transformation as initial satellite placement
   for (int pointIdx = 0; pointIdx <= numPoints; ++pointIdx)
   {
-    // True anomaly - angle from periapsis
-    double theta = 2.0 * PI * pointIdx / numPoints;
+    // True anomaly - angle from periapsis around the orbit
+    double trueAnomaly = 2.0 * PI * pointIdx / numPoints;
 
-    // Orbital radius at this true anomaly (polar equation of ellipse)
-    double r = (a * (1.0 - e * e)) / (1.0 + e * cos(theta));
+    // Create temporary orbit with this true anomaly
+    Orbit orbitAtPoint = orbit;
+    orbitAtPoint.v = trueAnomaly;
 
-    // Position in perifocal coordinates (orbital plane, periapsis on x-axis)
-    glm::dvec3 pos(
-        r * cos(theta), // x - along periapsis direction
-        0.0,            // y - perpendicular in orbital plane
-        r * sin(theta)  // z - out of plane (zero in perifocal frame)
-    );
-
-    // Transform from perifocal to inertial frame using rotation sequence:
-    // 1. Rotate by argument of perigee (w) around y-axis
-    // 2. Rotate by inclination (i) around x-axis
-    // 3. Rotate by RAAN (omega) around z-axis
-
-    // Apply inclination rotation (around z-axis)
-    glm::dmat4 rotI = glm::rotate(glm::dmat4(1.0), -i, glm::dvec3(0.0, 0.0, 1.0));
-    pos = glm::dvec3(rotI * glm::dvec4(pos, 1.0));
-
-    // Apply RAAN rotation (around z-axis)
-    glm::dmat4 rotOmega = glm::rotate(glm::dmat4(1.0), omega, glm::dvec3(0.0, 1.0, 0.0));
-    pos = glm::dvec3(rotOmega * glm::dvec4(pos, 1.0));
+    // Convert to Cartesian coordinates (position only, velocity not needed)
+    glm::dvec3 pos, vel;
+    orbitAtPoint.toCartesian(pos, vel, G * EARTH_MASS);
 
     orbitPath.push_back(pos);
   }
@@ -710,4 +773,170 @@ void Satellite::propagateAttitudeDynamics(double deltaTime, const glm::dvec3 &ex
 
   // Normalize quaternion to prevent drift
   quaternion = glm::normalize(quaternion);
+}
+
+// ========== PROPULSION AND STATION KEEPING ==========
+
+void Satellite::enableStationKeeping(bool enable, double targetAltitude)
+{
+  stationKeepingEnabled = enable;
+  hasThrusters = enable; // Enable thrusters when station keeping is enabled
+
+  if (enable && targetAltitude > 0.0)
+  {
+    // Set target semi-major axis from altitude
+    targetSemiMajorAxis = EARTH_RADIUS + targetAltitude;
+  }
+  else if (enable)
+  {
+    // Use current semi-major axis as target
+    double currentRadius = glm::length(position);
+    targetSemiMajorAxis = currentRadius;
+  }
+
+  // Reset check timer
+  timeSinceLastStationKeepingCheck = 0.0;
+}
+
+void Satellite::performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter)
+{
+  /**
+   * STATION KEEPING ALGORITHM
+   *
+   * Purpose: Maintain orbital altitude by compensating for atmospheric drag
+   *
+   * Strategy:
+   * 1. Periodically check current orbital altitude (semi-major axis)
+   * 2. If altitude has decayed beyond deadband, apply prograde thrust
+   * 3. Use Hohmann transfer-like burn to restore target altitude
+   *
+   * Burn Calculation:
+   * - For small altitude changes, Δv ≈ -(v/2) * (Δa/a)
+   *   where a = semi-major axis, v = orbital velocity
+   * - Apply thrust in velocity direction (prograde burn raises apoapsis)
+   * - Limit burn duration to avoid overshoot
+   */
+
+  // Update timer
+  timeSinceLastStationKeepingCheck += deltaTime;
+
+  // Only check periodically (not every frame - too wasteful)
+  if (timeSinceLastStationKeepingCheck < stationKeepingCheckInterval)
+  {
+    return;
+  }
+
+  // Reset timer
+  timeSinceLastStationKeepingCheck = 0.0;
+
+  // Calculate current semi-major axis (orbital radius approximation)
+  double currentRadius = glm::length(position - earthCenter);
+  double currentVelocityMag = glm::length(velocity);
+
+  // Calculate current semi-major axis using vis-viva equation
+  // v² = GM(2/r - 1/a)  =>  a = 1 / (2/r - v²/GM)
+  double mu = G * EARTH_MASS;
+  double specificEnergy = 0.5 * currentVelocityMag * currentVelocityMag - mu / currentRadius;
+  double currentSemiMajorAxis = -mu / (2.0 * specificEnergy);
+
+  // Calculate altitude error
+  double altitudeError = targetSemiMajorAxis - currentSemiMajorAxis;
+
+  // Check if we're outside deadband
+  if (fabs(altitudeError) < stationKeepingDeadband)
+  {
+    return; // Within acceptable range, no burn needed
+  }
+
+  // ========== CALCULATE REQUIRED DELTA-V ==========
+  // For small altitude corrections, use approximation:
+  // Δv ≈ -(v/2) * (Δa/a)
+  // This is derived from circular orbit velocity: v = sqrt(GM/a)
+  // Taking differential: dv = -0.5 * sqrt(GM/a³) * da
+
+  double deltaV_needed = -(currentVelocityMag / 2.0) * (altitudeError / currentSemiMajorAxis);
+
+  // Limit delta-V to what we can achieve in one burn interval
+  // Max Δv per burn = thrust * burn_time / mass
+  double maxDeltaVPerBurn = (thrusterMaxThrust * stationKeepingCheckInterval) / mass;
+
+  if (fabs(deltaV_needed) > maxDeltaVPerBurn)
+  {
+    deltaV_needed = (deltaV_needed > 0.0 ? 1.0 : -1.0) * maxDeltaVPerBurn;
+  }
+
+  // ========== APPLY THRUST ==========
+  // Thrust direction: prograde (velocity direction) to raise orbit
+  // (or retrograde to lower orbit, but we typically only fight drag)
+  glm::dvec3 thrustDirection = glm::normalize(velocity);
+
+  // For raising orbit (fighting drag), thrust prograde
+  // For lowering orbit (rare), thrust retrograde
+  if (deltaV_needed < 0.0)
+  {
+    thrustDirection = -thrustDirection;
+    deltaV_needed = -deltaV_needed; // Make positive for calculations
+  }
+
+  // Calculate burn time needed for this Δv
+  // Δv = (F/m) * t  =>  t = Δv * m / F
+  double burnTime = (deltaV_needed * mass) / thrusterMaxThrust;
+
+  // Limit burn time to check interval
+  burnTime = std::min(burnTime, stationKeepingCheckInterval);
+
+  // Calculate propellant consumption using Tsiolkovsky rocket equation
+  // Δm = m * (1 - exp(-Δv / (Isp * g₀)))
+  // where g₀ = 9.80665 m/s² (standard gravity)
+  const double g0 = 9.80665;
+  double exhaustVelocity = thrusterIsp * g0;
+  double propellantUsed = mass * (1.0 - exp(-deltaV_needed / exhaustVelocity));
+
+  // Check if we have enough propellant
+  if (propellantUsed > propellantMass)
+  {
+    // Not enough propellant - use what we have
+    propellantUsed = propellantMass;
+    deltaV_needed = exhaustVelocity * log(mass / (mass - propellantUsed));
+    burnTime = (deltaV_needed * mass) / thrusterMaxThrust;
+  }
+
+  // Apply velocity change (instantaneous Δv approximation)
+  // In reality, this happens over burnTime duration, but for simplicity
+  // we apply it as an impulse since stationKeepingCheckInterval >> burnTime
+  velocity += thrustDirection * deltaV_needed;
+
+  // Update propellant mass
+  propellantMass -= propellantUsed;
+  mass -= propellantUsed; // Total mass decreases
+
+  // Ensure propellant doesn't go negative
+  if (propellantMass < 0.0)
+  {
+    propellantMass = 0.0;
+  }
+
+  // Debug output (optional - could add a verbose flag)
+  // std::cout << name << " station keeping: Altitude error = " << altitudeError / 1000.0
+  //           << " km, Δv = " << deltaV_needed << " m/s, propellant used = "
+  //           << propellantUsed << " kg, remaining = " << propellantMass << " kg\n";
+}
+
+glm::dvec3 Satellite::calculateThrustAcceleration(const glm::dvec3 &thrustDirection, double thrustMagnitude)
+{
+  /**
+   * Calculate acceleration from thruster firing
+   *
+   * F = ma  =>  a = F/m
+   *
+   * This is used for instantaneous thrust applications (not currently used
+   * in station keeping, but useful for future maneuvers like plane changes)
+   */
+
+  if (thrustMagnitude <= 0.0 || mass <= 0.0)
+  {
+    return glm::dvec3(0.0);
+  }
+
+  return glm::normalize(thrustDirection) * (thrustMagnitude / mass);
 }

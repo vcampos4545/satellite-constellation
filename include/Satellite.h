@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
+#include <string>
 #include "Config.h"
 
 // Attitude control modes
@@ -29,7 +30,7 @@ enum class ControlAlgorithm
 class Satellite
 {
 public:
-  Satellite(const Orbit orbit, const glm::dvec3 &position, const glm::dvec3 &velocity, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0);
+  Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0, const std::string &name = "");
 
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
@@ -54,6 +55,7 @@ public:
   const std::vector<glm::dvec3> &getFootprintCircle() const { return footprintCircle; }
   int getPlaneId() const { return planeId; }
   int getIndexInPlane() const { return indexInPlane; }
+  std::string getName() const { return name; }
   bool shouldDrawOrbit() const
   {
     // For Molniya satellites (planeId -2), draw all orbits since each is in a different plane
@@ -88,6 +90,12 @@ public:
   // Control algorithm selection
   void setControlAlgorithm(ControlAlgorithm algo) { controlAlgorithm = algo; }
   ControlAlgorithm getControlAlgorithm() const { return controlAlgorithm; }
+
+  // Station keeping control
+  void enableStationKeeping(bool enable, double targetAltitude = 0.0);
+  double getPropellantMass() const { return propellantMass; }
+  double getPropellantFraction() const { return propellantMass / propellantMassInitial; }
+  bool hasPropellant() const { return propellantMass > 0.1; } // At least 100g remaining
 
   // Actuator configuration
   void enableReactionWheels(bool enable) { hasReactionWheels = enable; }
@@ -151,7 +159,12 @@ private:
   // ========== ORBITAL DYNAMICS METHODS ==========
   glm::dvec3 calculateAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPos, const glm::dvec3 &moonPos) const;
 
+  // ========== PROPULSION METHODS ==========
+  void performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter);
+  glm::dvec3 calculateThrustAcceleration(const glm::dvec3 &thrustDirection, double thrustMagnitude);
+
   glm::dvec3 calculateGravitationalAcceleration(const glm::dvec3 &pos, const glm::dvec3 &bodyPos, double bodyMass) const;
+  glm::dvec3 calculateZonalHarmonicsAcceleration(const glm::dvec3 &pos, const glm::dvec3 &earthCenter, double earthMass) const;
   glm::dvec3 calculateDragAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter) const;
   glm::dvec3 calculateSolarRadiationPressure(const glm::dvec3 &pos, const glm::dvec3 &sunPos, const glm::dvec3 &earthCenter) const;
 
@@ -190,6 +203,22 @@ private:
   double cmgMomentum = 50.0;     // Momentum per CMG (N·m·s)
   double cmgMaxGimbalRate = 0.1; // Maximum gimbal rate (rad/s)
 
+  // ========== PROPULSION SYSTEM (Station Keeping) ==========
+  // Hall Effect Thruster (typical for Starlink-class satellites)
+  bool hasThrusters = false;
+  double thrusterMaxThrust = 0.25;        // Maximum thrust per thruster (N) - typical Hall thruster
+  double thrusterIsp = 1800.0;            // Specific impulse (seconds) - Hall effect typical range
+  double propellantMass = 50.0;           // Propellant mass (kg) - Krypton or Xenon
+  double propellantMassInitial = 50.0;    // Initial propellant mass (for tracking consumption)
+  double thrusterEfficiency = 0.55;       // Thruster efficiency (0-1) - typical for Hall thrusters
+
+  // Station keeping configuration
+  bool stationKeepingEnabled = false;
+  double targetSemiMajorAxis = 0.0;       // Target semi-major axis (m) - orbit to maintain
+  double stationKeepingDeadband = 500.0;  // Altitude deadband (m) - don't burn unless outside this
+  double stationKeepingCheckInterval = 60.0; // Check orbit every N seconds
+  double timeSinceLastStationKeepingCheck = 0.0;
+
   // Attitude control state
   AttitudeControlMode controlMode = AttitudeControlMode::NONE;
   ControlAlgorithm controlAlgorithm = ControlAlgorithm::PID;    // Default controller
@@ -221,8 +250,9 @@ private:
   std::vector<glm::dvec3> orbitPath;       // Historical positions for drawing orbit
   int orbitPathMaxSize = 1000;             // Maximum number of points to store
 
-  int planeId;      // Orbital plane identifier
-  int indexInPlane; // Index of this satellite within its plane
+  int planeId;         // Orbital plane identifier
+  int indexInPlane;    // Index of this satellite within its plane
+  std::string name;    // Satellite name/identifier
 };
 
 #endif // SATELLITE_H

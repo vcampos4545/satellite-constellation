@@ -15,9 +15,6 @@ public:
   // Add celestial bodies
   void addBody(std::shared_ptr<CelestialBody> body);
 
-  // Add satellites
-  void addSatellite(std::shared_ptr<Satellite> satellite);
-
   // Get all bodies
   const std::vector<std::shared_ptr<CelestialBody>> &getBodies() const { return bodies; }
   const std::vector<std::shared_ptr<Satellite>> &getSatellites() const { return satellites; }
@@ -35,8 +32,13 @@ public:
   // Initialize GPS Constellation
   void addGPSConstellation();
 
+  void addGEOConstellation(int numSatellites = 10);
+
   // Initialize a Starlink-like LEO constellation
   void addStarlinkConstellation(int numPlanes = 6, int satellitesPerPlane = 10);
+
+  // Initialize a reflect orbital like constellation (SSO)
+  void addReflectConstellation(int numSatellites = 10);
 
   // Initialize a Molniya constellation (highly elliptical orbit for high latitude coverage)
   void addMolniyaConstellation(int numSatellites = 3);
@@ -48,14 +50,14 @@ public:
   void update(double deltaTime, double maxPhysicsStep = 0.1);
 
 private:
-  // Helper method to create a satellite with orbit and footprint calculations
+  // Helper method to create a satellite from orbital elements
+  // Automatically converts orbital elements to position/velocity
   std::shared_ptr<Satellite> createSatelliteWithOrbit(
-      const Orbit orbit,
-      const glm::dvec3 &position,
-      const glm::dvec3 &velocity,
+      const Orbit &orbit,
       const glm::vec3 &color,
-      int planeId,
-      int indexInPlane);
+      int planeId = 0,
+      int indexInPlane = 0,
+      const std::string &name = "");
 
   std::vector<std::shared_ptr<CelestialBody>> bodies;
   std::vector<std::shared_ptr<Satellite>> satellites;
@@ -63,7 +65,7 @@ private:
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;
   std::shared_ptr<CelestialBody> moon;
-  double moonOrbitAngle;                 // Current angle of moon's orbit around Earth
+  double moonOrbitAngle = 0.0;           // Current angle of moon's orbit around Earth
   std::vector<glm::dvec3> moonOrbitPath; // Visualization of moon's orbit path
 };
 
