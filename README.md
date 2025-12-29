@@ -286,7 +286,7 @@ Gyroscopic torque: $\vec{\tau}_{\text{gyro}} = -\vec{\omega} \times (I\vec{\omeg
 
 **PID Control Law**
 
-$$\vec{\tau}_{\text{control}} = K_p \vec{e}_{\text{att}} + K_i \int \vec{e}_{\text{att}} \, dt + K_d (-\vec{\omega})$$
+$$\vec{\tau}_{\text{control}} = K_p \vec{e}_{\text{att}} + K_i \int \vec{e}_{\text{att}} dt + K_d (-\vec{\omega})$$
 
 Auto-tuned gains:
 
@@ -372,36 +372,10 @@ For each point on footprint circle:
 
 $$d = R_{\text{earth}} \cdot \arcsin\left(\sin(\lambda_0) \cdot \frac{r_{\text{sat}}}{R_{\text{earth}}}\right) \quad \text{(footprint radius)}$$
 
-## License
-
-This project is for educational and simulation purposes.
-
 ## Credits
 
 - Texture loading via stb_image by Sean Barrett
 
-## Texture Setup
+## License
 
-### Earth Texture
-
-1. Download an Earth texture from:
-
-   - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
-   - [NASA Visible Earth](https://visibleearth.nasa.gov/)
-
-2. Save as `textures/earth.jpg`
-
-3. The simulation will automatically load it on startup
-
-### Moon Texture
-
-1. Download a Moon texture from:
-
-   - [Solar System Scope](https://www.solarsystemscope.com/textures/) (recommended)
-   - [NASA CGI Moon Kit](https://svs.gsfc.nasa.gov/cgi-bin/details.cgi?aid=4720)
-
-2. Save as `textures/moon.jpg`
-
-3. The simulation will automatically load it on startup
-
-See `textures/README.md` for more details.
+This project is for educational and simulation purposes.
