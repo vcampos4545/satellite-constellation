@@ -69,6 +69,8 @@ private:
   Cube cubeMesh;
   LineRenderer lineRenderer;
   OBJMesh starlinkMesh;
+  OBJMesh cubesat1UMesh;
+  OBJMesh cubesat2UMesh;
 
   // Textures
   Texture earthTexture;
@@ -82,6 +84,8 @@ private:
 
   // Mesh loaded flags
   bool starlinkMeshLoaded;
+  bool cubesat1UMeshLoaded;
+  bool cubesat2UMeshLoaded;
 
   // Initialization state
   bool initialized;

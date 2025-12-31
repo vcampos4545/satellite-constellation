@@ -23,6 +23,7 @@ These are simulated space based solar power satellites, beaming energy to earth 
 #include "Satellite.h"
 #include "CelestialBody.h"
 #include "VisualizationState.h"
+#include "GroundStation.h"
 
 // ImGui includes
 #include "imgui.h"
@@ -340,9 +341,9 @@ int main()
   Universe universe;
 
   // Create camera
-  Camera camera(45.0f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 5e4f, 2e11f); // Far plane extended to 200 million km to see the sun
+  Camera camera(45.0f, (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 5e4f, 2e11f);
+  camera.setDistance(2.5e7f);
   camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f));
-  camera.setDistance(1.5e7f); // 15,000 km from Earth - good view of LEO constellation
 
   // Time control state
   float timeWarpMultiplier = 1.0f; // Start at 1x speed
@@ -362,7 +363,7 @@ int main()
   state.clickMouseX = 0.0;
   state.clickMouseY = 0.0;
   state.currentTheta = 0.0f;
-  state.currentPhi = glm::pi<float>() / 4.0f; // Match initial camera phi
+  state.currentPhi = 0.0f;
   state.timeWarpMultiplier = &timeWarpMultiplier;
   state.isPaused = &isPaused;
   state.selectedObject = &selectedObject;
@@ -410,8 +411,7 @@ int main()
   std::cout << "SPACE: Pause/Unpause simulation" << std::endl;
   std::cout << ". or +: Increase time warp (1x -> 10x -> 100x -> 1000x -> 10000x)" << std::endl;
   std::cout << ", or -: Decrease time warp" << std::endl;
-  std::cout << "================\n"
-            << std::endl;
+  std::cout << "================" << std::endl;
 
   // Time tracking for rotation
   float lastTime = glfwGetTime();
@@ -434,13 +434,13 @@ int main()
       float warpedDeltaTime = deltaTime * timeWarpMultiplier;
       // Update orbital physics with sub-stepping (max 0.1 second physics steps)
       universe.update(warpedDeltaTime, 0.1);
-    }
 
-    // Update camera target to track selected object as it moves
-    if (selectedObject.isValid())
-    {
-      glm::dvec3 objectPos = universe.getObjectPosition(selectedObject.object);
-      camera.setTarget(glm::vec3(objectPos));
+      // Update camera target to track selected object as it moves
+      if (selectedObject.isValid())
+      {
+        glm::dvec3 objectPos = universe.getObjectPosition(selectedObject.object);
+        camera.setTarget(glm::vec3(objectPos));
+      }
     }
 
     // Update window title with current time warp
@@ -480,203 +480,489 @@ int main()
         Satellite *sat = selectedObject.asSatellite();
         if (sat)
         {
-          ImGui::Begin("Satellite Control Panel", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+          ImGui::Begin("Satellite Operations Dashboard", nullptr, ImGuiWindowFlags_None);
+          ImGui::SetWindowSize(ImVec2(500, 750), ImGuiCond_FirstUseEver);
 
-          // ========== IDENTIFICATION ==========
-          ImGui::SeparatorText("Satellite Information");
-          ImGui::Text("Name: %s", sat->getName().c_str());
-          ImGui::Text("Plane: %d  |  Index: %d", sat->getPlaneId(), sat->getIndexInPlane());
-
-          // ========== ORBITAL STATE ==========
-          ImGui::Spacing();
-          ImGui::SeparatorText("Orbital State");
-
-          auto pos = sat->getPosition();
-          double altitude = (glm::length(pos) - EARTH_RADIUS) / 1e3; // km
-          ImGui::Text("Altitude: %.1f km", altitude);
-
-          auto vel = sat->getVelocity();
-          double speed = glm::length(vel) / 1e3; // km/s
-          ImGui::Text("Velocity: %.3f km/s", speed);
-
-          double orbitalPeriod = 2.0 * PI * sqrt(pow(glm::length(pos), 3) / (G * EARTH_MASS)) / 60.0; // minutes
-          ImGui::Text("Orbital Period: %.1f min", orbitalPeriod);
-
-          // ========== ATTITUDE STATE ==========
-          ImGui::Spacing();
-          ImGui::SeparatorText("Attitude State");
-
-          // Angular velocity (rotation rates)
-          auto omega = sat->getAngularVelocity();
-          double omegaMag = glm::length(omega) * 180.0 / PI; // Convert to deg/s
-          ImGui::Text("Angular Velocity:");
-          ImGui::Text("  X: %+.4f deg/s", omega.x * 180.0 / PI);
-          ImGui::Text("  Y: %+.4f deg/s", omega.y * 180.0 / PI);
-          ImGui::Text("  Z: %+.4f deg/s", omega.z * 180.0 / PI);
-          ImGui::Text("  Magnitude: %.4f deg/s", omegaMag);
-
-          // Quaternion
-          auto quat = sat->getQuaternion();
-          ImGui::Text("Quaternion: [%.3f, %.3f, %.3f, %.3f]", quat.w, quat.x, quat.y, quat.z);
-
-          // ========== ATTITUDE CONTROL ==========
-          ImGui::Spacing();
-          ImGui::SeparatorText("Attitude Control");
-
-          // Control mode selection
-          const char *controlModeNames[] = {
-              "NONE (Tumbling)",
-              "DETUMBLE",
-              "NADIR POINTING",
-              "SUN POINTING",
-              "VELOCITY POINTING",
-              "INERTIAL HOLD",
-              "TARGET TRACKING"};
-          int currentMode = (int)sat->getControlMode();
-          if (ImGui::Combo("Control Mode", &currentMode, controlModeNames, IM_ARRAYSIZE(controlModeNames)))
-          {
-            sat->setControlMode((AttitudeControlMode)currentMode);
-            std::cout << "Switched to control mode: " << controlModeNames[currentMode] << std::endl;
-          }
-
-          // Control algorithm selection
-          const char *algorithmNames[] = {"PID", "LQR", "MPC"};
-          int currentAlgo = (int)sat->getControlAlgorithm();
-          if (ImGui::Combo("Control Algorithm", &currentAlgo, algorithmNames, IM_ARRAYSIZE(algorithmNames)))
-          {
-            sat->setControlAlgorithm((ControlAlgorithm)currentAlgo);
-            std::cout << "Switched to control algorithm: " << algorithmNames[currentAlgo] << std::endl;
-          }
-
-          // ========== ACTUATORS STATUS ==========
-          ImGui::Spacing();
-          ImGui::SeparatorText("Actuators");
-          ImGui::Text("Reaction Wheels: ACTIVE");
-          ImGui::Text("Magnetorquers: Available");
-          ImGui::Text("CMGs: Available");
-
-          // ========== POWER SYSTEM ==========
-          ImGui::Spacing();
-          ImGui::SeparatorText("Power System");
-
-          // Battery status
-          double batteryPercent = sat->getBatteryPercentage();
-          ImGui::Text("Battery: %.1f Wh / %.1f Wh", sat->getBatteryCharge(), sat->getBatteryCapacity());
-
-          // Color-coded battery bar
-          ImVec4 batteryColor;
-          if (batteryPercent > 50.0)
-            batteryColor = ImVec4(0.2f, 0.8f, 0.2f, 1.0f); // Green
-          else if (batteryPercent > 20.0)
-            batteryColor = ImVec4(0.9f, 0.7f, 0.2f, 1.0f); // Yellow
-          else
-            batteryColor = ImVec4(0.9f, 0.2f, 0.2f, 1.0f); // Red
-
-          ImGui::PushStyleColor(ImGuiCol_PlotHistogram, batteryColor);
-          ImGui::ProgressBar(sat->getBatteryPercentage() / 100.0f, ImVec2(0.0f, 0.0f),
-                             (std::to_string((int)batteryPercent) + "%").c_str());
+          // ========== HEADER: SATELLITE IDENTIFICATION ==========
+          ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.8f, 1.0f, 1.0f));
+          ImGui::TextUnformatted(sat->getName().c_str());
           ImGui::PopStyleColor();
-
-          // Power generation and consumption
-          double powerGen = sat->getPowerGeneration();
-          double powerCons = sat->getPowerConsumption();
-          double netPower = sat->getNetPower();
-
-          ImGui::Text("Generation: %.1f W", powerGen);
-          ImGui::SameLine(150);
-          if (sat->isInEclipse())
-          {
-            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.9f, 1.0f), "[ECLIPSE]");
-          }
-          else
-          {
-            ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f), "[SUNLIT]");
-          }
-
-          ImGui::Text("Consumption: %.1f W", powerCons);
-
-          ImGui::Text("Net Power: ");
           ImGui::SameLine();
-          if (netPower > 0.0)
+          ImGui::TextDisabled("(Plane %d, Sat %d)", sat->getPlaneId(), sat->getIndexInPlane());
+          ImGui::Separator();
+
+          // ========== HEALTH SUMMARY (Compact Overview) ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.3f, 0.4f, 1.0f));
+          if (ImGui::CollapsingHeader("Health Summary", ImGuiTreeNodeFlags_DefaultOpen))
           {
-            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "+%.1f W (Charging)", netPower);
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            // Get health indicators
+            auto pos = sat->getPosition();
+            double altitude = (glm::length(pos) - EARTH_RADIUS) / 1e3;
+            double batteryPercent = sat->getBatteryPercentage();
+            double omegaMag = glm::length(sat->getAngularVelocity()) * 180.0 / PI;
+
+            // Compact 2-column layout
+            ImGui::Columns(2, "healthcols", false);
+
+            // Column 1
+            ImGui::Text("Altitude:");
+            ImGui::NextColumn();
+            ImGui::Text("%.0f km", altitude);
+            ImGui::NextColumn();
+
+            ImGui::Text("Battery:");
+            ImGui::NextColumn();
+            ImVec4 battColor = batteryPercent > 50 ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : batteryPercent > 20 ? ImVec4(0.9f, 0.7f, 0.2f, 1.0f)
+                                                                                                          : ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+            ImGui::TextColored(battColor, "%.0f%%", batteryPercent);
+            ImGui::NextColumn();
+
+            ImGui::Text("ADCS Mode:");
+            ImGui::NextColumn();
+            const char *modeShort[] = {"OFF", "DETUMB", "NADIR", "SUN", "VEL", "INERT", "TGT"};
+            ImGui::Text("%s", modeShort[(int)sat->getControlMode()]);
+            ImGui::NextColumn();
+
+            ImGui::Text("Ang. Velocity:");
+            ImGui::NextColumn();
+            ImVec4 omegaColor = omegaMag < 1.0 ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.9f, 0.7f, 0.2f, 1.0f);
+            ImGui::TextColored(omegaColor, "%.2f °/s", omegaMag);
+            ImGui::NextColumn();
+
+            ImGui::Columns(1);
+            ImGui::Unindent();
           }
           else
           {
-            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.3f, 1.0f), "%.1f W (Draining)", netPower);
+            ImGui::PopStyleColor();
           }
 
-          // ========== ADVANCED CONTROL TUNING ==========
-          ImGui::Spacing();
-          if (ImGui::CollapsingHeader("Advanced Control Tuning"))
+          // ========== ALERTS PANEL (Front and Center) ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.6f, 0.2f, 0.2f, 1.0f));
+          if (ImGui::CollapsingHeader("⚠ ALERTS", ImGuiTreeNodeFlags_DefaultOpen))
           {
-            if (sat->getControlAlgorithm() == ControlAlgorithm::PID)
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            const auto &alerts = sat->getAlertSystem().getAlerts();
+
+            if (alerts.empty())
             {
-              ImGui::Text("PID Controller Gains:");
-              if (ImGui::Button("Auto-Tune PID"))
+              ImGui::TextColored(ImVec4(0.3f, 0.8f, 0.3f, 1.0f), "✓ All systems nominal");
+            }
+            else
+            {
+              // Count alerts by severity
+              int criticalCount = sat->getAlertSystem().getCriticalCount();
+              int warningCount = sat->getAlertSystem().getWarningCount();
+
+              if (criticalCount > 0)
               {
-                sat->autoTunePID(20.0, 0.9); // 20s settling time, 0.9 damping
-                std::cout << "PID auto-tuned for 20s settling time" << std::endl;
+                ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "CRITICAL: %d", criticalCount);
               }
-              ImGui::SameLine();
-              if (ImGui::Button("Reset Integral"))
+              if (warningCount > 0)
               {
-                sat->resetIntegralError();
+                ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "WARNING: %d", warningCount);
+              }
+
+              ImGui::Spacing();
+              ImGui::BeginChild("AlertList", ImVec2(0, 100), true);
+
+              // Display alerts (most recent first)
+              for (int i = alerts.size() - 1; i >= 0; i--)
+              {
+                const auto &alert = alerts[i];
+                ImVec4 color;
+                const char *icon;
+
+                switch (alert.severity)
+                {
+                case AlertSeverity::CRITICAL:
+                  color = ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
+                  icon = "⛔";
+                  break;
+                case AlertSeverity::WARNING:
+                  color = ImVec4(1.0f, 0.7f, 0.2f, 1.0f);
+                  icon = "⚠";
+                  break;
+                default:
+                  color = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);
+                  icon = "ℹ";
+                  break;
+                }
+
+                ImGui::TextColored(color, "%s %s", icon, alert.message.c_str());
+              }
+
+              ImGui::EndChild();
+
+              if (ImGui::Button("Clear Alerts"))
+              {
+                sat->getAlertSystem().clearAlerts();
               }
             }
-            else if (sat->getControlAlgorithm() == ControlAlgorithm::LQR)
+
+            ImGui::Unindent();
+          }
+          else
+          {
+            ImGui::PopStyleColor();
+          }
+
+          // ========== ORBIT & GROUND TRACK PANEL ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+          if (ImGui::CollapsingHeader("🌍 Orbit & Ground Track"))
+          {
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            auto pos = sat->getPosition();
+            double altitude = (glm::length(pos) - EARTH_RADIUS) / 1e3;
+
+            auto vel = sat->getVelocity();
+            double speed = glm::length(vel) / 1e3;
+
+            double orbitalPeriod = 2.0 * PI * sqrt(pow(glm::length(pos), 3) / (G * EARTH_MASS)) / 60.0;
+
+            ImGui::Text("Altitude: %.1f km", altitude);
+            ImGui::Text("Velocity: %.3f km/s", speed);
+            ImGui::Text("Orbital Period: %.1f min", orbitalPeriod);
+
+            // Orbital elements (approximate)
+            double semiMajorAxis = glm::length(pos) / 1e3;
+            ImGui::Text("Semi-Major Axis: %.0f km", semiMajorAxis);
+
+            // Position vector
+            ImGui::Spacing();
+            ImGui::Text("Position (ECI):");
+            ImGui::Text("  X: %+.0f km", pos.x / 1e3);
+            ImGui::Text("  Y: %+.0f km", pos.y / 1e3);
+            ImGui::Text("  Z: %+.0f km", pos.z / 1e3);
+
+            ImGui::Unindent();
+          }
+          else
+          {
+            ImGui::PopStyleColor();
+          }
+
+          // ========== ADCS PANEL ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.4f, 0.2f, 0.6f, 1.0f));
+          if (ImGui::CollapsingHeader("🎯 ADCS (Attitude Control)"))
+          {
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            // Angular velocity telemetry
+            auto omega = sat->getAngularVelocity();
+            double omegaMag = glm::length(omega) * 180.0 / PI;
+
+            ImGui::Text("Angular Velocity: %.3f °/s", omegaMag);
+            ImGui::Indent();
+            ImGui::Text("X: %+.3f °/s", omega.x * 180.0 / PI);
+            ImGui::Text("Y: %+.3f °/s", omega.y * 180.0 / PI);
+            ImGui::Text("Z: %+.3f °/s", omega.z * 180.0 / PI);
+            ImGui::Unindent();
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // Control mode commands
+            ImGui::Text("Control Commands:");
+            const char *controlModeNames[] = {
+                "NONE", "DETUMBLE", "NADIR", "SUN", "VELOCITY", "INERTIAL", "TARGET"};
+            int currentMode = (int)sat->getControlMode();
+
+            // Quick command buttons (3 columns)
+            if (ImGui::Button("DETUMBLE", ImVec2(150, 0)))
             {
-              ImGui::Text("LQR Controller: Optimal state feedback");
+              sat->setControlMode(AttitudeControlMode::DETUMBLE);
             }
-            else if (sat->getControlAlgorithm() == ControlAlgorithm::MPC)
+            if (ImGui::Button("NADIR POINT", ImVec2(150, 0)))
             {
-              ImGui::Text("MPC Controller: Predictive control");
+              sat->setControlMode(AttitudeControlMode::NADIR_POINTING);
+            }
+            if (ImGui::Button("SUN POINT", ImVec2(150, 0)))
+            {
+              sat->setControlMode(AttitudeControlMode::SUN_POINTING);
             }
 
             ImGui::Spacing();
-            ImGui::Text("Body Axes (Inertial Frame):");
-            auto xAxis = sat->getBodyXAxis();
-            auto yAxis = sat->getBodyYAxis();
-            auto zAxis = sat->getBodyZAxis();
-            ImGui::Text("  X: [%.3f, %.3f, %.3f]", xAxis.x, xAxis.y, xAxis.z);
-            ImGui::Text("  Y: [%.3f, %.3f, %.3f]", yAxis.x, yAxis.y, yAxis.z);
-            ImGui::Text("  Z: [%.3f, %.3f, %.3f]", zAxis.x, zAxis.y, zAxis.z);
-          }
+            ImGui::Text("Current Mode: %s", controlModeNames[currentMode]);
 
-          // ========== PROPULSION ==========
-          ImGui::Spacing();
-          ImGui::SeparatorText("Propulsion System");
+            // Control algorithm
+            ImGui::Spacing();
+            const char *algorithmNames[] = {"PID", "LQR", "MPC"};
+            int currentAlgo = (int)sat->getControlAlgorithm();
+            if (ImGui::Combo("Algorithm", &currentAlgo, algorithmNames, IM_ARRAYSIZE(algorithmNames)))
+            {
+              sat->setControlAlgorithm((ControlAlgorithm)currentAlgo);
+            }
 
-          if (sat->hasPropellant())
-          {
-            double propellant = sat->getPropellantMass();
-            double propellantPercent = sat->getPropellantFraction() * 100.0;
-            ImGui::Text("Propellant: %.1f kg (%.1f%%)", propellant, propellantPercent);
-            ImGui::ProgressBar(sat->getPropellantFraction(), ImVec2(0.0f, 0.0f));
+            // Advanced tuning
+            if (ImGui::TreeNode("Advanced"))
+            {
+              if (sat->getControlAlgorithm() == ControlAlgorithm::PID)
+              {
+                if (ImGui::Button("Auto-Tune PID"))
+                {
+                  sat->autoTunePID(20.0, 0.9);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Reset Integral"))
+                {
+                  sat->resetIntegralError();
+                }
+              }
+
+              auto quat = sat->getQuaternion();
+              ImGui::Text("Quaternion: [%.2f, %.2f, %.2f, %.2f]", quat.w, quat.x, quat.y, quat.z);
+
+              ImGui::TreePop();
+            }
+
+            ImGui::Unindent();
           }
           else
           {
-            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "No Propellant Remaining");
+            ImGui::PopStyleColor();
           }
 
-          // ========== VISUALIZATION ==========
+          // ========== COMMUNICATIONS PANEL ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.6f, 0.4f, 1.0f));
+          if (ImGui::CollapsingHeader("📡 COMMS (Communications)"))
+          {
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            // Ground station link status
+            auto &groundStations = universe.getGroundStations();
+            int visibleStations = 0;
+            std::string visibleStationNames = "";
+
+            for (const auto &gs : groundStations)
+            {
+              // Check if satellite is visible from this ground station
+              const auto &visibleSats = gs->getVisibleSatellites();
+              for (const auto &visSat : visibleSats)
+              {
+                if (visSat.get() == sat)
+                {
+                  visibleStations++;
+                  if (!visibleStationNames.empty())
+                    visibleStationNames += ", ";
+                  visibleStationNames += gs->getName();
+                  break;
+                }
+              }
+            }
+
+            if (visibleStations > 0)
+            {
+              ImGui::TextColored(ImVec4(0.3f, 0.8f, 0.3f, 1.0f), "● LINK ESTABLISHED");
+              ImGui::Text("Ground Stations: %d", visibleStations);
+              ImGui::TextWrapped("%s", visibleStationNames.c_str());
+
+              // Simulated data rate (based on altitude)
+              auto pos = sat->getPosition();
+              double altitude = (glm::length(pos) - EARTH_RADIUS) / 1e3;
+              double dataRate = 100.0 * (1.0 - (altitude / 2000.0)); // Simple model
+              if (dataRate < 0)
+                dataRate = 10.0;
+              ImGui::Text("Downlink Rate: %.1f Mbps", dataRate);
+              ImGui::Text("Signal Strength: GOOD");
+            }
+            else
+            {
+              ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1.0f), "○ NO LINK");
+              ImGui::Text("No ground stations in view");
+              ImGui::Text("Next pass: TBD");
+            }
+
+            ImGui::Spacing();
+            if (ImGui::Button("Request Telemetry"))
+            {
+              // Placeholder for command
+              std::cout << "Telemetry requested from " << sat->getName() << std::endl;
+            }
+
+            ImGui::Unindent();
+          }
+          else
+          {
+            ImGui::PopStyleColor();
+          }
+
+          // ========== EPS (ELECTRICAL POWER SYSTEM) PANEL ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.6f, 0.5f, 0.2f, 1.0f));
+          if (ImGui::CollapsingHeader("⚡ EPS (Electrical Power)", ImGuiTreeNodeFlags_DefaultOpen))
+          {
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            // Battery telemetry
+            double batteryPercent = sat->getBatteryPercentage();
+            ImGui::Text("Battery:");
+            ImGui::Indent();
+            ImGui::Text("%.1f Wh / %.1f Wh", sat->getBatteryCharge(), sat->getBatteryCapacity());
+
+            // Color-coded battery bar
+            ImVec4 batteryColor;
+            if (batteryPercent > 50.0)
+              batteryColor = ImVec4(0.2f, 0.8f, 0.2f, 1.0f);
+            else if (batteryPercent > 20.0)
+              batteryColor = ImVec4(0.9f, 0.7f, 0.2f, 1.0f);
+            else
+              batteryColor = ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, batteryColor);
+            ImGui::ProgressBar(batteryPercent / 100.0f, ImVec2(0.0f, 0.0f),
+                               (std::to_string((int)batteryPercent) + "%").c_str());
+            ImGui::PopStyleColor();
+            ImGui::Unindent();
+
+            ImGui::Spacing();
+
+            // Power generation/consumption
+            double powerGen = sat->getPowerGeneration();
+            double powerCons = sat->getPowerConsumption();
+            double netPower = sat->getNetPower();
+
+            ImGui::Columns(2, "powercols", false);
+            ImGui::Text("Generation:");
+            ImGui::NextColumn();
+            ImGui::Text("%.1f W", powerGen);
+            if (sat->isInEclipse())
+            {
+              ImGui::SameLine();
+              ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.9f, 1.0f), "[ECLIPSE]");
+            }
+            ImGui::NextColumn();
+
+            ImGui::Text("Consumption:");
+            ImGui::NextColumn();
+            ImGui::Text("%.1f W", powerCons);
+            ImGui::NextColumn();
+
+            ImGui::Text("Net Power:");
+            ImGui::NextColumn();
+            if (netPower > 0.0)
+            {
+              ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "+%.1f W", netPower);
+            }
+            else
+            {
+              ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.3f, 1.0f), "%.1f W", netPower);
+            }
+            ImGui::NextColumn();
+
+            ImGui::Columns(1);
+
+            ImGui::Unindent();
+          }
+          else
+          {
+            ImGui::PopStyleColor();
+          }
+
+          // ========== PROPULSION PANEL ==========
+          ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.5f, 0.3f, 0.2f, 1.0f));
+          if (ImGui::CollapsingHeader("🚀 Propulsion & Station Keeping"))
+          {
+            ImGui::PopStyleColor();
+            ImGui::Indent();
+
+            if (sat->hasPropellant())
+            {
+              double propellant = sat->getPropellantMass();
+              double propellantPercent = sat->getPropellantFraction() * 100.0;
+
+              ImGui::Text("Propellant: %.1f kg", propellant);
+              ImGui::ProgressBar(sat->getPropellantFraction(), ImVec2(0.0f, 0.0f),
+                                 (std::to_string((int)propellantPercent) + "%").c_str());
+
+              ImGui::Spacing();
+              ImGui::Text("Station Keeping: ENABLED");
+
+              // Get orbital elements
+              auto elements = sat->getOrbitalElements(glm::dvec3(0.0));
+
+              ImGui::Spacing();
+              ImGui::SeparatorText("Orbital Elements");
+              ImGui::Columns(2, "orbitcols", false);
+
+              ImGui::Text("Eccentricity:");
+              ImGui::NextColumn();
+              ImVec4 eccColor = elements.eccentricity < 0.01 ? ImVec4(0.3f, 0.8f, 0.3f, 1.0f) : elements.eccentricity < 0.05 ? ImVec4(0.9f, 0.7f, 0.2f, 1.0f)
+                                                                                                                             : ImVec4(0.9f, 0.3f, 0.3f, 1.0f);
+              ImGui::TextColored(eccColor, "%.4f", elements.eccentricity);
+              ImGui::NextColumn();
+
+              ImGui::Text("Periapsis:");
+              ImGui::NextColumn();
+              ImGui::Text("%.0f km", (elements.periapsis - EARTH_RADIUS) / 1e3);
+              ImGui::NextColumn();
+
+              ImGui::Text("Apoapsis:");
+              ImGui::NextColumn();
+              ImGui::Text("%.0f km", (elements.apoapsis - EARTH_RADIUS) / 1e3);
+              ImGui::NextColumn();
+
+              ImGui::Columns(1);
+
+              // Maneuver state
+              ImGui::Spacing();
+              ImGui::SeparatorText("Maneuver Status");
+              const char *stateStr = sat->getManeuverStateString();
+              ImVec4 stateColor = (strcmp(stateStr, "IDLE") == 0) ? ImVec4(0.7f, 0.7f, 0.7f, 1.0f) : ImVec4(0.3f, 1.0f, 0.3f, 1.0f);
+              ImGui::TextColored(stateColor, "%s", stateStr);
+
+              if (strcmp(stateStr, "IDLE") != 0)
+              {
+                ImGui::Indent();
+                if (fabs(sat->getBurn1DeltaV()) > 0.01)
+                {
+                  ImGui::Text("Burn 1 ΔV: %.2f m/s", sat->getBurn1DeltaV());
+                }
+                if (fabs(sat->getBurn2DeltaV()) > 0.01)
+                {
+                  ImGui::Text("Burn 2 ΔV: %.2f m/s", sat->getBurn2DeltaV());
+                }
+                ImGui::Unindent();
+              }
+            }
+            else
+            {
+              ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "⚠ No Propellant Remaining");
+              ImGui::Text("Station Keeping: DISABLED");
+            }
+
+            ImGui::Unindent();
+          }
+          else
+          {
+            ImGui::PopStyleColor();
+          }
+
+          // ========== VISUALIZATION CONTROLS ==========
           ImGui::Spacing();
-          ImGui::SeparatorText("Visualization (This Satellite)");
+          ImGui::Separator();
+          ImGui::Text("Visualization:");
 
           auto &satViz = vizState.getOrCreate(sat);
-          ImGui::Checkbox("Show Orbit Path", &satViz.showOrbitPath);
-          ImGui::Checkbox("Show Footprint", &satViz.showFootprint);
-          ImGui::Checkbox("Show Attitude Vector", &satViz.showAttitudeVector);
-
-          ImGui::Spacing();
-          ImGui::SeparatorText("Global Visualization");
-          ImGui::Checkbox("Show All Orbit Paths", &vizState.showAllOrbitPaths);
-          ImGui::Checkbox("Show All Attitude Vectors", &vizState.showAllAttitudeVectors);
+          ImGui::Checkbox("Orbit Path", &satViz.showOrbitPath);
+          ImGui::SameLine();
+          ImGui::Checkbox("Footprint", &satViz.showFootprint);
+          ImGui::SameLine();
+          ImGui::Checkbox("Attitude", &satViz.showAttitudeVector);
 
           // ========== ACTIONS ==========
           ImGui::Spacing();
           ImGui::Separator();
-          if (ImGui::Button("Deselect", ImVec2(120, 0)))
+          if (ImGui::Button("Deselect & Return to Earth View", ImVec2(-1, 0)))
           {
             selectedObject.clear();
             camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -811,6 +1097,35 @@ int main()
         }
       }
 
+      // ========== GROUND STATIONS ==========
+      // ImGui::Spacing();
+      // if (ImGui::CollapsingHeader("Ground Stations"))
+      // {
+      //   auto &groundStations = universe.getGroundStations();
+      //
+      //   for (const auto &gs : groundStations)
+      //   {
+      //     std::string gsLabel = gs->getName();
+      //
+      //     // Show number of visible satellites
+      //     int visibleCount = gs->getVisibleSatellites().size();
+      //     gsLabel += " (" + std::to_string(visibleCount) + " visible)";
+      //
+      //     if (ImGui::TreeNode(gsLabel.c_str()))
+      //     {
+      //       ImGui::Text("Visible Satellites:");
+      //
+      //       for (const auto &sat : gs->getVisibleSatellites())
+      //       {
+      //         std::string satInfo = "  " + sat->getName();
+      //         ImGui::Text("%s", satInfo.c_str());
+      //       }
+      //
+      //       ImGui::TreePop();
+      //     }
+      //   }
+      // }
+
       ImGui::Spacing();
       ImGui::SeparatorText("Global Visualization");
       ImGui::Checkbox("Show All Orbit Paths", &vizState.showAllOrbitPaths);
@@ -818,6 +1133,41 @@ int main()
 
       ImGui::End();
     }
+
+    // ========== GROUND STATION COMMUNICATION WINDOW ==========
+    // // Show this window if a satellite is selected - allows sending commands
+    // if (selectedObject.type == SelectedObject::Type::Satellite && selectedObject.isValid())
+    // {
+    //   Satellite *sat = selectedObject.asSatellite();
+    //   if (sat)
+    //   {
+    //     ImGui::Begin("Ground Station Control", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    //
+    //     ImGui::Text("Selected: %s", sat->getName().c_str());
+    //     ImGui::Separator();
+    //
+    //     // Find which ground stations can see this satellite
+    //     auto &groundStations = universe.getGroundStations();
+    //     bool hasVisibleStation = false;
+    //
+    //     for (const auto &gs : groundStations)
+    //     {
+    //       if (gs->isSatelliteVisible(sat->getPosition(), glm::dvec3(0.0)))
+    //       {
+    //         hasVisibleStation = true;
+    //         ImGui::Text("Station: %s", gs->getName().c_str());
+    //         ImGui::Separator();
+    //       }
+    //     }
+    //
+    //     if (!hasVisibleStation)
+    //     {
+    //       ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1.0f), "No ground stations in range");
+    //     }
+    //
+    //     ImGui::End();
+    //   }
+    // }
 
     // Render ImGui
     ImGui::Render();

@@ -20,6 +20,24 @@ Universe::Universe()
   addReflectConstellation();
   addMolniyaConstellation(3); // 3 satellites for continuous coverage
   addGroundStations();
+
+  // Add cubesats
+  Orbit orbit{EARTH_RADIUS + 700e3, 0.0, 45.0, 0.0, 0.0, 0.0};
+  auto cube1U = createSatelliteWithOrbit(
+      orbit,
+      glm::vec3(0.3f, 0.9f, 0.0f), // Yellow-green color
+      4,
+      0,
+      "Cubesat1U");
+  auto cube2U = createSatelliteWithOrbit(
+      orbit,
+      glm::vec3(0.3f, 0.9f, 0.0f), // Yellow-green color
+      5,
+      0,
+      "Cubesat2U");
+
+  satellites.push_back(cube1U);
+  satellites.push_back(cube2U);
 }
 
 std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
@@ -40,9 +58,6 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
   satellite->enableReactionWheels(true);
   satellite->setControlMode(AttitudeControlMode::TARGET_TRACKING);
   satellite->setControlAlgorithm(ControlAlgorithm::PID);
-
-  // Calculate and visualize the orbital path
-  satellite->calculateOrbitPath(100);
 
   return satellite;
 }

@@ -3,7 +3,7 @@
 
 Camera::Camera(float fov, float aspectRatio, float nearPlane, float farPlane)
     : fov(fov), aspectRatio(aspectRatio), nearPlane(nearPlane), farPlane(farPlane),
-      target(0.0f, 0.0f, 0.0f), distance(2e7f), theta(0.0f), phi(glm::pi<float>() / 4.0f)
+      target(0.0f, 0.0f, 0.0f), distance(2e7f), theta(0.0f), phi(0.0f)
 {
   projectionMatrix = glm::perspective(glm::radians(fov), aspectRatio, nearPlane, farPlane);
   updatePosition();
@@ -52,7 +52,7 @@ void Camera::setAspectRatio(float aspectRatio)
 }
 
 void Camera::screenToWorldRay(double mouseX, double mouseY, int screenWidth, int screenHeight,
-                               glm::vec3 &rayOrigin, glm::vec3 &rayDirection) const
+                              glm::vec3 &rayOrigin, glm::vec3 &rayDirection) const
 {
   // Convert mouse coordinates from screen space to normalized device coordinates (NDC)
   // Screen space: (0,0) is top-left, (width, height) is bottom-right

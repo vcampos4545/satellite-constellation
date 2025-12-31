@@ -51,6 +51,7 @@ add_executable(simulation
     src/Texture.cpp
     src/Satellite.cpp
     src/GroundStation.cpp
+    src/CommLink.cpp
     src/LineRenderer.cpp
     src/MathUtils.cpp
     src/Renderer.cpp

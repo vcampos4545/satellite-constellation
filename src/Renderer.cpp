@@ -55,10 +55,24 @@ bool Renderer::initialize()
   }
 
   // Load Starlink satellite mesh
-  starlinkMeshLoaded = starlinkMesh.load("models/starlink.obj");
+  starlinkMeshLoaded = starlinkMesh.load("models/starlink/starlink.obj");
   if (!starlinkMeshLoaded)
   {
-    std::cout << "Note: Starlink mesh not found. Using simple geometry. Place Starlink OBJ at 'models/starlink.obj'" << std::endl;
+    std::cout << "Note: Starlink mesh not found. Using simple geometry'" << std::endl;
+  }
+
+  // Load Starlink satellite mesh
+  cubesat1UMeshLoaded = cubesat1UMesh.load("models/cubesat1U/cubesat1U.obj");
+  if (!cubesat1UMeshLoaded)
+  {
+    std::cout << "Note: Cubesat1U mesh not found. Using simple geometry'" << std::endl;
+  }
+
+  // Load Starlink satellite mesh
+  cubesat2UMeshLoaded = cubesat2UMesh.load("models/cubesat2U/cubesat2U.obj");
+  if (!cubesat2UMeshLoaded)
+  {
+    std::cout << "Note: Cubesat2U mesh not found. Using simple geometry'" << std::endl;
   }
 
   initialized = true;
@@ -237,7 +251,7 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
                                 const Satellite *selectedSatellite)
 {
   // ========== RENDER ORBIT PATHS ==========
-  glLineWidth(5.0f);
+  glLineWidth(10.0f);
   lineShader->use();
 
   for (const auto &satellite : satellites)
@@ -260,7 +274,7 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
       lineRenderer.setVertices(pathVertices);
 
       // Make orbit lines slightly dimmer than satellites
-      glm::vec3 orbitColor = satellite->getColor() * 0.6f;
+      glm::vec3 orbitColor = satellite->getColor();
       lineShader->setVec3("lineColor", orbitColor);
       lineRenderer.draw();
     }
@@ -270,14 +284,12 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
   // ========== RENDER SATELLITE GEOMETRY ==========
   sphereShader->use();
   sphereShader->setBool("useTexture", false);
-  sphereShader->setFloat("ambientStrength", 1.0f);  // Full brightness for emissive
-  sphereShader->setBool("isEmissive", true);        // Satellites are self-illuminated (always visible)
+  sphereShader->setFloat("ambientStrength", 1.0f); // Full brightness for emissive
+  sphereShader->setBool("isEmissive", true);       // Satellites are self-illuminated (always visible)
 
   for (const auto &satellite : satellites)
   {
     glm::vec3 satPos = glm::vec3(satellite->getPosition());
-    glm::vec3 brightColor = satellite->getColor() * 2.0f; // Make satellites very bright
-    sphereShader->setVec3("objectColor", brightColor);
 
     // Get satellite attitude (quaternion -> rotation matrix)
     glm::quat attitudeQuat = glm::quat(satellite->getQuaternion()); // Convert dquat to quat
@@ -285,25 +297,43 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
 
     // Check if this is a Starlink satellite and we have the mesh loaded
     bool isStarlink = satellite->getName().find("Starlink") != std::string::npos;
+    bool isCubesat1U = satellite->getName().find("Cubesat1U") != std::string::npos;
+    bool isCubesat2U = satellite->getName().find("Cubesat2U") != std::string::npos;
 
-    if (isStarlink && starlinkMeshLoaded)
+    if ((isStarlink && starlinkMeshLoaded) || (isCubesat1U && cubesat1UMeshLoaded) || (isCubesat2U && cubesat2UMeshLoaded))
     {
-      // Render Starlink 3D model (smaller size)
+      // Render 3D model with materials from MTL file
+      // Don't set objectColor here - let the mesh draw() method handle materials
       glm::mat4 meshModel = glm::mat4(1.0f);
       meshModel = glm::translate(meshModel, satPos);
-      meshModel = meshModel * attitudeMatrix;                // Apply attitude rotation
-      meshModel = glm::scale(meshModel, glm::vec3(0.8e4f));  // Much smaller: ~8km (was 50km)
+      meshModel = meshModel * attitudeMatrix;               // Apply attitude rotation
+      meshModel = glm::scale(meshModel, glm::vec3(0.8e4f)); // Much smaller: ~8km (was 50km)
       sphereShader->setMat4("model", meshModel);
-      starlinkMesh.draw(*sphereShader);
+
+      if (isStarlink)
+      {
+        starlinkMesh.draw(*sphereShader);
+      }
+      else if (isCubesat1U)
+      {
+        cubesat1UMesh.draw(*sphereShader);
+      }
+      else if (isCubesat2U)
+      {
+        cubesat2UMesh.draw(*sphereShader);
+      }
     }
     else
     {
       // Fall back to simple geometry (cube + solar panels) - reduced size
+      // Set color for simple geometry
+      glm::vec3 brightColor = satellite->getColor() * 2.0f; // Make satellites very bright
+      sphereShader->setVec3("objectColor", brightColor);
 
       // Render central body (elongated box) - 5x smaller than before
       glm::mat4 bodyModel = glm::mat4(1.0f);
       bodyModel = glm::translate(bodyModel, satPos);
-      bodyModel = bodyModel * attitudeMatrix;                              // Apply attitude rotation
+      bodyModel = bodyModel * attitudeMatrix;                               // Apply attitude rotation
       bodyModel = glm::scale(bodyModel, glm::vec3(1.6e4f, 2.4e4f, 1.6e4f)); // 16km x 24km x 16km (was 80x120x80)
       sphereShader->setMat4("model", bodyModel);
       cubeMesh.draw();
@@ -311,9 +341,9 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
       // Render left solar panel (thin flat box) - 5x smaller
       glm::mat4 leftPanelModel = glm::mat4(1.0f);
       leftPanelModel = glm::translate(leftPanelModel, satPos);
-      leftPanelModel = leftPanelModel * attitudeMatrix;                               // Apply attitude rotation
+      leftPanelModel = leftPanelModel * attitudeMatrix;                                // Apply attitude rotation
       leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-3.0e4f, 0.0f, 0.0f)); // Offset to the left (in body frame)
-      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f)); // 40km x 36km x 4km (was 200x180x20)
+      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));  // 40km x 36km x 4km (was 200x180x20)
       sphereShader->setMat4("model", leftPanelModel);
 
       // Make solar panels brighter blue (self-illuminated)
@@ -324,7 +354,7 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
       // Render right solar panel - 5x smaller
       glm::mat4 rightPanelModel = glm::mat4(1.0f);
       rightPanelModel = glm::translate(rightPanelModel, satPos);
-      rightPanelModel = rightPanelModel * attitudeMatrix;                              // Apply attitude rotation
+      rightPanelModel = rightPanelModel * attitudeMatrix;                               // Apply attitude rotation
       rightPanelModel = glm::translate(rightPanelModel, glm::vec3(3.0e4f, 0.0f, 0.0f)); // Offset to the right (in body frame)
       rightPanelModel = glm::scale(rightPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f)); // 40km x 36km x 4km (was 200x180x20)
       sphereShader->setMat4("model", rightPanelModel);

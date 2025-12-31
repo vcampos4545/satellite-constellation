@@ -2,6 +2,7 @@
 #include "Constants.h"
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
+#include <iostream>
 
 Satellite::Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, const glm::vec3 &color, int planeId, int indexInPlane, const std::string &name)
     : orbit(orbit),
@@ -15,6 +16,9 @@ Satellite::Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::d
       angularVelocity(0.0, 0.0, 0.0)  // No initial rotation
 {
   autoTunePID();
+
+  // Add initial position to trail
+  orbitPath.push_back(position);
 }
 
 glm::dvec3 Satellite::calculateGravitationalAcceleration(const glm::dvec3 &pos, const glm::dvec3 &bodyPos, double bodyMass) const
@@ -239,30 +243,29 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
   // Update battery charge based on solar generation and system consumption
   updatePowerSystem(deltaTime, sunPosition, earthCenter);
 
+  // ========== ALERT CHECKING ==========
+  // Clear old alerts and check telemetry limits (run periodically, not every frame)
+  timeSinceLastAlertCheck += deltaTime;
+  if (timeSinceLastAlertCheck > 5.0) // Check every 5 seconds
+  {
+    alertSystem.clearAlerts(); // Clear previous alerts
+    checkTelemetryLimits();
+    timeSinceLastAlertCheck = 0.0;
+  }
+
   // Update footprint every frame
   calculateFootprint(earthCenter, 60);
-}
 
-void Satellite::calculateOrbitPath(int numPoints)
-{
-  orbitPath.clear();
+  // ========== ORBIT PATH HISTORY ==========
+  // Increment update iteration counter
+  updateIterationCount++;
 
-  // Generate orbit path by computing position at various true anomalies
-  // Uses the same coordinate transformation as initial satellite placement
-  for (int pointIdx = 0; pointIdx <= numPoints; ++pointIdx)
+  // Add current position to historical trail every N iterations
+  // This gives smooth trails regardless of time warp speed
+  // Saves complete history since simulation start
+  if (updateIterationCount % orbitPathSaveInterval == 0)
   {
-    // True anomaly - angle from periapsis around the orbit
-    double trueAnomaly = 2.0 * PI * pointIdx / numPoints;
-
-    // Create temporary orbit with this true anomaly
-    Orbit orbitAtPoint = orbit;
-    orbitAtPoint.v = trueAnomaly;
-
-    // Convert to Cartesian coordinates (position only, velocity not needed)
-    glm::dvec3 pos, vel;
-    orbitAtPoint.toCartesian(pos, vel, G * EARTH_MASS);
-
-    orbitPath.push_back(pos);
+    orbitPath.push_back(position);
   }
 }
 
@@ -805,125 +808,259 @@ void Satellite::enableStationKeeping(bool enable, double targetAltitude)
 void Satellite::performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter)
 {
   /**
-   * STATION KEEPING ALGORITHM
+   * STATION KEEPING ALGORITHM - TWO-BURN HOHMANN TRANSFER
    *
-   * Purpose: Maintain orbital altitude by compensating for atmospheric drag
+   * Purpose: Maintain circular orbit by compensating for atmospheric drag
+   *
+   * Problem: Single prograde burn raises apoapsis but not periapsis, creating eccentric orbit
+   * Solution: Two-burn Hohmann-like transfer to restore circular orbit
    *
    * Strategy:
-   * 1. Periodically check current orbital altitude (semi-major axis)
-   * 2. If altitude has decayed beyond deadband, apply prograde thrust
-   * 3. Use Hohmann transfer-like burn to restore target altitude
+   * 1. Detect when orbit has decayed (periapsis or semi-major axis below target)
+   * 2. Plan two-burn transfer:
+   *    - Burn 1 at periapsis: Raise apoapsis to target altitude
+   *    - Burn 2 at apoapsis: Circularize by raising periapsis to match apoapsis
+   * 3. Execute burns at correct orbital positions
    *
-   * Burn Calculation:
-   * - For small altitude changes, Δv ≈ -(v/2) * (Δa/a)
-   *   where a = semi-major axis, v = orbital velocity
-   * - Apply thrust in velocity direction (prograde burn raises apoapsis)
-   * - Limit burn duration to avoid overshoot
+   * For small eccentricity (e < 0.01), use single optimized burn at periapsis
    */
 
-  // Update timer
-  timeSinceLastStationKeepingCheck += deltaTime;
+  const double mu = G * EARTH_MASS;
+  const double g0 = 9.80665; // Standard gravity (m/s²)
+  const double exhaustVelocity = thrusterIsp * g0;
 
-  // Only check periodically (not every frame - too wasteful)
-  if (timeSinceLastStationKeepingCheck < stationKeepingCheckInterval)
-  {
-    return;
-  }
-
-  // Reset timer
-  timeSinceLastStationKeepingCheck = 0.0;
-
-  // Calculate current semi-major axis (orbital radius approximation)
-  double currentRadius = glm::length(position - earthCenter);
+  // ========== CALCULATE CURRENT ORBITAL ELEMENTS ==========
+  glm::dvec3 r = position - earthCenter;
+  double currentRadius = glm::length(r);
   double currentVelocityMag = glm::length(velocity);
 
-  // Calculate current semi-major axis using vis-viva equation
-  // v² = GM(2/r - 1/a)  =>  a = 1 / (2/r - v²/GM)
-  double mu = G * EARTH_MASS;
+  // Calculate specific angular momentum: h = r × v
+  glm::dvec3 h = glm::cross(r, velocity);
+  double h_mag = glm::length(h);
+
+  // Calculate eccentricity vector: e = (v × h)/μ - r/|r|
+  glm::dvec3 e_vec = (glm::cross(velocity, h) / mu) - (r / currentRadius);
+  double eccentricity = glm::length(e_vec);
+
+  // Calculate semi-major axis from vis-viva equation
   double specificEnergy = 0.5 * currentVelocityMag * currentVelocityMag - mu / currentRadius;
   double currentSemiMajorAxis = -mu / (2.0 * specificEnergy);
 
-  // Calculate altitude error
-  double altitudeError = targetSemiMajorAxis - currentSemiMajorAxis;
+  // Calculate periapsis and apoapsis
+  double periapsis = currentSemiMajorAxis * (1.0 - eccentricity);
+  double apoapsis = currentSemiMajorAxis * (1.0 + eccentricity);
 
-  // Check if we're outside deadband
-  if (fabs(altitudeError) < stationKeepingDeadband)
+  // Detect if we're at periapsis or apoapsis
+  // At periapsis: r is minimum, radial velocity changes from negative to positive
+  // At apoapsis: r is maximum, radial velocity changes from positive to negative
+  glm::dvec3 r_hat = r / currentRadius;
+  glm::dvec3 v_hat = velocity / currentVelocityMag;
+  double radialVelocity = glm::dot(velocity, r_hat);
+
+  // True anomaly (angle from periapsis)
+  double trueAnomaly = 0.0;
+  if (eccentricity > 1e-6)
   {
-    return; // Within acceptable range, no burn needed
+    double cos_nu = glm::dot(e_vec, r) / (eccentricity * currentRadius);
+    trueAnomaly = acos(glm::clamp(cos_nu, -1.0, 1.0));
+    if (radialVelocity < 0.0)
+    {
+      trueAnomaly = 2.0 * PI - trueAnomaly;
+    }
   }
 
-  // ========== CALCULATE REQUIRED DELTA-V ==========
-  // For small altitude corrections, use approximation:
-  // Δv ≈ -(v/2) * (Δa/a)
-  // This is derived from circular orbit velocity: v = sqrt(GM/a)
-  // Taking differential: dv = -0.5 * sqrt(GM/a³) * da
+  bool atPeriapsis = fabs(trueAnomaly) < 0.05 || fabs(trueAnomaly - 2.0 * PI) < 0.05; // Within ~3° of periapsis
+  bool atApoapsis = fabs(trueAnomaly - PI) < 0.05;                                    // Within ~3° of apoapsis
 
-  double deltaV_needed = -(currentVelocityMag / 2.0) * (altitudeError / currentSemiMajorAxis);
-
-  // Limit delta-V to what we can achieve in one burn interval
-  // Max Δv per burn = thrust * burn_time / mass
-  double maxDeltaVPerBurn = (thrusterMaxThrust * stationKeepingCheckInterval) / mass;
-
-  if (fabs(deltaV_needed) > maxDeltaVPerBurn)
+  // ========== STATE MACHINE FOR MULTI-BURN MANEUVER ==========
+  if (maneuverState == ManeuverState::IDLE)
   {
-    deltaV_needed = (deltaV_needed > 0.0 ? 1.0 : -1.0) * maxDeltaVPerBurn;
+    // Update timer
+    timeSinceLastStationKeepingCheck += deltaTime;
+
+    // Only check periodically
+    if (timeSinceLastStationKeepingCheck < stationKeepingCheckInterval)
+    {
+      return;
+    }
+    timeSinceLastStationKeepingCheck = 0.0;
+
+    // Check if orbit needs correction
+    double altitudeError = targetSemiMajorAxis - currentSemiMajorAxis;
+
+    if (fabs(altitudeError) < stationKeepingDeadband && eccentricity < 0.01)
+    {
+      return; // Orbit is good, no correction needed
+    }
+
+    // ========== PLAN MANEUVER ==========
+    if (eccentricity < 0.01)
+    {
+      // Orbit is nearly circular - use single optimized burn at periapsis
+      // Δv = √(μ/r_current) * (√(2*r_target/(r_current + r_target)) - 1)
+      // Simplified for small changes: Δv ≈ (v/2) * (Δa/a)
+      double circularVelocity = sqrt(mu / targetSemiMajorAxis);
+      double currentCircularVelocity = sqrt(mu / currentSemiMajorAxis);
+      burn1DeltaV = circularVelocity - currentCircularVelocity;
+      burn2DeltaV = 0.0;
+
+      maneuverState = ManeuverState::BURN1_PENDING;
+      std::cout << name << ": Single burn planned, ΔV = " << burn1DeltaV << " m/s\n";
+    }
+    else
+    {
+      // Orbit is eccentric - use two-burn Hohmann transfer
+
+      // Burn 1 at periapsis: Raise apoapsis to target altitude
+      // v_periapsis_before = √(μ * (2/r_p - 1/a_current))
+      double v_peri_before = sqrt(mu * (2.0 / periapsis - 1.0 / currentSemiMajorAxis));
+
+      // Target transfer orbit: periapsis = current periapsis, apoapsis = target altitude
+      double a_transfer = (periapsis + targetSemiMajorAxis) / 2.0;
+      double v_peri_transfer = sqrt(mu * (2.0 / periapsis - 1.0 / a_transfer));
+
+      burn1DeltaV = v_peri_transfer - v_peri_before;
+
+      // Burn 2 at apoapsis: Circularize at target altitude
+      // v_apoapsis_transfer = √(μ * (2/r_target - 1/a_transfer))
+      double v_apo_transfer = sqrt(mu * (2.0 / targetSemiMajorAxis - 1.0 / a_transfer));
+      double v_circular_target = sqrt(mu / targetSemiMajorAxis);
+
+      burn2DeltaV = v_circular_target - v_apo_transfer;
+
+      maneuverState = ManeuverState::BURN1_PENDING;
+      std::cout << name << ": Two-burn maneuver planned, e=" << eccentricity
+                << ", ΔV1=" << burn1DeltaV << " m/s, ΔV2=" << burn2DeltaV << " m/s\n";
+    }
+  }
+  else if (maneuverState == ManeuverState::BURN1_PENDING)
+  {
+    // Wait for periapsis to execute first burn
+    if (atPeriapsis)
+    {
+      // Execute burn 1
+      if (propellantMass > 0.0)
+      {
+        glm::dvec3 thrustDirection = glm::normalize(velocity);
+        double propellantUsed = mass * (1.0 - exp(-fabs(burn1DeltaV) / exhaustVelocity));
+
+        if (propellantUsed > propellantMass)
+        {
+          propellantUsed = propellantMass;
+          burn1DeltaV = exhaustVelocity * log(mass / (mass - propellantUsed));
+        }
+
+        velocity += thrustDirection * burn1DeltaV;
+        propellantMass -= propellantUsed;
+        mass -= propellantUsed;
+
+        std::cout << name << ": Burn 1 executed at periapsis, ΔV = " << burn1DeltaV
+                  << " m/s, propellant used = " << propellantUsed << " kg\n";
+      }
+
+      // Transition to next state
+      if (fabs(burn2DeltaV) > 0.1) // If second burn needed
+      {
+        maneuverState = ManeuverState::COASTING;
+        std::cout << name << ": Coasting to apoapsis...\n";
+      }
+      else
+      {
+        maneuverState = ManeuverState::IDLE; // Single burn complete
+        std::cout << name << ": Single burn maneuver complete\n";
+      }
+    }
+  }
+  else if (maneuverState == ManeuverState::COASTING)
+  {
+    // Coast to apoapsis for second burn
+    if (atApoapsis)
+    {
+      maneuverState = ManeuverState::BURN2_PENDING;
+    }
+  }
+  else if (maneuverState == ManeuverState::BURN2_PENDING)
+  {
+    // Execute burn 2 at apoapsis
+    if (atApoapsis)
+    {
+      if (propellantMass > 0.0)
+      {
+        glm::dvec3 thrustDirection = glm::normalize(velocity);
+        double propellantUsed = mass * (1.0 - exp(-fabs(burn2DeltaV) / exhaustVelocity));
+
+        if (propellantUsed > propellantMass)
+        {
+          propellantUsed = propellantMass;
+          burn2DeltaV = exhaustVelocity * log(mass / (mass - propellantUsed));
+        }
+
+        velocity += thrustDirection * burn2DeltaV;
+        propellantMass -= propellantUsed;
+        mass -= propellantUsed;
+
+        std::cout << name << ": Burn 2 executed at apoapsis, ΔV = " << burn2DeltaV
+                  << " m/s, propellant used = " << propellantUsed << " kg\n";
+      }
+
+      maneuverState = ManeuverState::IDLE; // Maneuver complete
+      std::cout << name << ": Two-burn maneuver complete - orbit circularized\n";
+    }
   }
 
-  // ========== APPLY THRUST ==========
-  // Thrust direction: prograde (velocity direction) to raise orbit
-  // (or retrograde to lower orbit, but we typically only fight drag)
-  glm::dvec3 thrustDirection = glm::normalize(velocity);
+  // Update last true anomaly for next iteration
+  lastTrueAnomaly = trueAnomaly;
 
-  // For raising orbit (fighting drag), thrust prograde
-  // For lowering orbit (rare), thrust retrograde
-  if (deltaV_needed < 0.0)
-  {
-    thrustDirection = -thrustDirection;
-    deltaV_needed = -deltaV_needed; // Make positive for calculations
-  }
-
-  // Calculate burn time needed for this Δv
-  // Δv = (F/m) * t  =>  t = Δv * m / F
-  double burnTime = (deltaV_needed * mass) / thrusterMaxThrust;
-
-  // Limit burn time to check interval
-  burnTime = std::min(burnTime, stationKeepingCheckInterval);
-
-  // Calculate propellant consumption using Tsiolkovsky rocket equation
-  // Δm = m * (1 - exp(-Δv / (Isp * g₀)))
-  // where g₀ = 9.80665 m/s² (standard gravity)
-  const double g0 = 9.80665;
-  double exhaustVelocity = thrusterIsp * g0;
-  double propellantUsed = mass * (1.0 - exp(-deltaV_needed / exhaustVelocity));
-
-  // Check if we have enough propellant
-  if (propellantUsed > propellantMass)
-  {
-    // Not enough propellant - use what we have
-    propellantUsed = propellantMass;
-    deltaV_needed = exhaustVelocity * log(mass / (mass - propellantUsed));
-    burnTime = (deltaV_needed * mass) / thrusterMaxThrust;
-  }
-
-  // Apply velocity change (instantaneous Δv approximation)
-  // In reality, this happens over burnTime duration, but for simplicity
-  // we apply it as an impulse since stationKeepingCheckInterval >> burnTime
-  velocity += thrustDirection * deltaV_needed;
-
-  // Update propellant mass
-  propellantMass -= propellantUsed;
-  mass -= propellantUsed; // Total mass decreases
-
-  // Ensure propellant doesn't go negative
+  // Safety: ensure propellant doesn't go negative
   if (propellantMass < 0.0)
   {
     propellantMass = 0.0;
   }
+}
 
-  // Debug output (optional - could add a verbose flag)
-  // std::cout << name << " station keeping: Altitude error = " << altitudeError / 1000.0
-  //           << " km, Δv = " << deltaV_needed << " m/s, propellant used = "
-  //           << propellantUsed << " kg, remaining = " << propellantMass << " kg\n";
+Satellite::OrbitalElements Satellite::getOrbitalElements(const glm::dvec3 &earthCenter) const
+{
+  const double mu = G * EARTH_MASS;
+
+  glm::dvec3 r = position - earthCenter;
+  double currentRadius = glm::length(r);
+  double currentVelocityMag = glm::length(velocity);
+
+  // Calculate specific angular momentum: h = r × v
+  glm::dvec3 h = glm::cross(r, velocity);
+  double h_mag = glm::length(h);
+
+  // Calculate eccentricity vector: e = (v × h)/μ - r/|r|
+  glm::dvec3 e_vec = (glm::cross(velocity, h) / mu) - (r / currentRadius);
+  double eccentricity = glm::length(e_vec);
+
+  // Calculate semi-major axis from vis-viva equation
+  double specificEnergy = 0.5 * currentVelocityMag * currentVelocityMag - mu / currentRadius;
+  double semiMajorAxis = -mu / (2.0 * specificEnergy);
+
+  // Calculate periapsis and apoapsis
+  double periapsis = semiMajorAxis * (1.0 - eccentricity);
+  double apoapsis = semiMajorAxis * (1.0 + eccentricity);
+
+  // Calculate inclination
+  glm::dvec3 h_hat = h / h_mag;
+  double inclination = acos(glm::clamp(h_hat.z, -1.0, 1.0)); // Angle from Z-axis
+
+  // Calculate true anomaly
+  double trueAnomaly = 0.0;
+  if (eccentricity > 1e-6)
+  {
+    glm::dvec3 r_hat = r / currentRadius;
+    double radialVelocity = glm::dot(velocity, r_hat);
+    double cos_nu = glm::dot(e_vec, r) / (eccentricity * currentRadius);
+    trueAnomaly = acos(glm::clamp(cos_nu, -1.0, 1.0));
+    if (radialVelocity < 0.0)
+    {
+      trueAnomaly = 2.0 * PI - trueAnomaly;
+    }
+  }
+
+  return OrbitalElements{semiMajorAxis, eccentricity, periapsis, apoapsis, inclination, trueAnomaly};
 }
 
 glm::dvec3 Satellite::calculateThrustAcceleration(const glm::dvec3 &thrustDirection, double thrustMagnitude)
@@ -1016,7 +1153,7 @@ double Satellite::calculateSolarFlux(const glm::dvec3 &sunPosition) const
 {
   /**
    * Calculate solar flux at satellite position
-   * 
+   *
    * Solar constant at 1 AU: 1361 W/m²
    * Flux decreases with inverse square of distance from sun
    */
@@ -1036,7 +1173,7 @@ bool Satellite::checkEclipse(const glm::dvec3 &sunPosition, const glm::dvec3 &ea
 {
   /**
    * Check if satellite is in Earth's shadow (eclipse)
-   * 
+   *
    * Method: Ray-sphere intersection from satellite toward sun
    * If ray intersects Earth before reaching sun, satellite is in eclipse
    */
@@ -1075,7 +1212,7 @@ double Satellite::calculatePowerConsumption() const
 {
   /**
    * Calculate total power consumption from all satellite systems
-   * 
+   *
    * Systems:
    * - Baseline avionics (always on)
    * - Reaction wheels (when ADCS active)
@@ -1120,9 +1257,9 @@ double Satellite::calculatePowerGeneration(double solarFlux, const glm::dvec3 &s
 {
   /**
    * Calculate power generation from solar panels
-   * 
+   *
    * Power = Solar Flux × Panel Area × Efficiency × cos(angle)
-   * 
+   *
    * The cos(angle) term accounts for the angle between panel normal and sun direction
    * We assume panels can track the sun (body-mounted tracking or articulated panels)
    */
@@ -1143,4 +1280,123 @@ double Satellite::calculatePowerGeneration(double solarFlux, const glm::dvec3 &s
   double power = solarFlux * solarPanelArea * solarPanelEfficiency * cosAngle * solarPanelDegradation;
 
   return power;
+}
+
+// ========== ALERT SYSTEM IMPLEMENTATION ==========
+
+void Satellite::checkTelemetryLimits()
+{
+  /**
+   * Check all satellite telemetry against operational limits
+   * Generate alerts for out-of-spec conditions
+   *
+   * This mirrors flight software limit checking that would generate
+   * alerts for ground operators
+   */
+
+  // ========== POWER SYSTEM CHECKS ==========
+
+  // Battery charge critical
+  if (batteryCharge < batteryCapacity * 0.1)
+  {
+    alertSystem.addAlert("Battery critically low: " + std::to_string((int)getBatteryPercentage()) + "%",
+                         AlertSeverity::CRITICAL, AlertCategory::POWER);
+  }
+  else if (batteryCharge < batteryCapacity * 0.2)
+  {
+    alertSystem.addAlert("Battery low: " + std::to_string((int)getBatteryPercentage()) + "%",
+                         AlertSeverity::WARNING, AlertCategory::POWER);
+  }
+
+  // Power balance negative while in eclipse
+  if (inEclipse && batteryCharge < batteryCapacity * 0.5)
+  {
+    alertSystem.addAlert("In eclipse with low battery: " + std::to_string((int)getBatteryPercentage()) + "%",
+                         AlertSeverity::WARNING, AlertCategory::POWER);
+  }
+
+  // Solar panel degradation
+  if (solarPanelDegradation < 0.8)
+  {
+    alertSystem.addAlert("Solar panel degradation: " + std::to_string((int)(solarPanelDegradation * 100)) + "%",
+                         AlertSeverity::WARNING, AlertCategory::POWER);
+  }
+
+  // ========== ADCS CHECKS ==========
+
+  // High angular velocity (tumbling)
+  double omegaMag = glm::length(angularVelocity);
+  if (omegaMag > 0.1) // 0.1 rad/s = ~5.7 deg/s
+  {
+    alertSystem.addAlert("High angular velocity: " + std::to_string(omegaMag * 180.0 / PI) + " deg/s",
+                         AlertSeverity::WARNING, AlertCategory::ADCS);
+  }
+
+  // Reaction wheel saturation
+  if (hasReactionWheels)
+  {
+    double maxWheelMomentum = std::max({std::abs(reactionWheelMomentum.x),
+                                        std::abs(reactionWheelMomentum.y),
+                                        std::abs(reactionWheelMomentum.z)});
+    if (maxWheelMomentum > reactionWheelMaxMomentum * 0.9)
+    {
+      alertSystem.addAlert("Reaction wheel near saturation: " + std::to_string((int)((maxWheelMomentum / reactionWheelMaxMomentum) * 100)) + "%",
+                           AlertSeverity::WARNING, AlertCategory::ADCS);
+    }
+  }
+
+  // ADCS disabled while not in safe orientation
+  if (controlMode == AttitudeControlMode::NONE && omegaMag > 0.01)
+  {
+    alertSystem.addAlert("ADCS disabled while tumbling",
+                         AlertSeverity::CRITICAL, AlertCategory::ADCS);
+  }
+
+  // ========== PROPULSION CHECKS ==========
+
+  // Low propellant
+  if (hasThrusters)
+  {
+    double propellantPercent = getPropellantFraction() * 100.0;
+    if (propellantPercent < 5.0)
+    {
+      alertSystem.addAlert("Propellant critically low: " + std::to_string((int)propellantPercent) + "%",
+                           AlertSeverity::CRITICAL, AlertCategory::PROPULSION);
+    }
+    else if (propellantPercent < 20.0)
+    {
+      alertSystem.addAlert("Propellant low: " + std::to_string((int)propellantPercent) + "%",
+                           AlertSeverity::WARNING, AlertCategory::PROPULSION);
+    }
+  }
+
+  // ========== ORBITAL CHECKS ==========
+
+  // Altitude checks
+  double altitude = (glm::length(position) - EARTH_RADIUS) / 1e3; // km
+
+  // Too low - atmospheric drag will cause rapid decay
+  if (altitude < 200.0)
+  {
+    alertSystem.addAlert("Altitude critically low: " + std::to_string((int)altitude) + " km - rapid decay expected",
+                         AlertSeverity::CRITICAL, AlertCategory::ORBIT);
+  }
+  else if (altitude < 300.0)
+  {
+    alertSystem.addAlert("Altitude low: " + std::to_string((int)altitude) + " km - increased drag",
+                         AlertSeverity::WARNING, AlertCategory::ORBIT);
+  }
+
+  // Station keeping checks
+  if (stationKeepingEnabled && targetSemiMajorAxis > 0.0)
+  {
+    double currentRadius = glm::length(position);
+    double altitudeError = (targetSemiMajorAxis - currentRadius) / 1e3; // km
+
+    if (std::abs(altitudeError) > 5.0)
+    {
+      alertSystem.addAlert("Orbit altitude error: " + std::to_string((int)altitudeError) + " km from target",
+                           AlertSeverity::WARNING, AlertCategory::ORBIT);
+    }
+  }
 }

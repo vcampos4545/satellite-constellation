@@ -3,6 +3,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <iostream>
 
 class Camera
 {
@@ -14,7 +15,16 @@ public:
   glm::mat4 getProjectionMatrix() const { return projectionMatrix; }
 
   // Camera controls (orbital around target)
-  void setTarget(const glm::vec3 &target) { this->target = target; }
+  void setTarget(const glm::vec3 &target)
+  {
+    const glm::vec3 temp = target;
+    this->target = target;
+
+    if (&this->target != &temp)
+    {
+      updatePosition();
+    }
+  }
   void setDistance(float distance) { this->distance = distance; }
   void setAngles(float theta, float phi);
 
@@ -46,11 +56,11 @@ private:
   glm::mat4 projectionMatrix;
 
   // Camera position (orbital)
-  glm::vec3 target;    // What we're looking at
-  glm::vec3 position;  // Camera position
-  float distance;      // Distance from target
-  float theta;         // Horizontal angle (azimuth)
-  float phi;           // Vertical angle (elevation)
+  glm::vec3 target;   // What we're looking at
+  glm::vec3 position; // Camera position
+  float distance;     // Distance from target
+  float theta;        // Horizontal angle (azimuth)
+  float phi;          // Vertical angle (elevation)
 };
 
 #endif // CAMERA_H

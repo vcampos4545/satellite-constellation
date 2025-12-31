@@ -16,9 +16,9 @@ const double EARTH_AXIAL_TILT = 23.5;                                        // 
 
 // Earth gravity field zonal harmonic coefficients (dimensionless)
 // These describe Earth's non-spherical mass distribution
-const double J2 = 1.08263e-3;  // Oblateness (equatorial bulge) - dominant term
-const double J3 = -2.54e-6;    // Pear-shaped asymmetry (North-South)
-const double J4 = -1.62e-6;    // Higher-order oblateness correction
+const double J2 = 1.08263e-3; // Oblateness (equatorial bulge) - dominant term
+const double J3 = -2.54e-6;   // Pear-shaped asymmetry (North-South)
+const double J4 = -1.62e-6;   // Higher-order oblateness correction
 
 // Sun constants
 const double SUN_MASS = 1.989e30; // kg
@@ -61,5 +61,7 @@ const double DRAG_ALTITUDE_MAX = 1000e3; // Maximum altitude where drag is signi
 const double SOLAR_FLUX = 1367.0;                          // Solar constant at 1 AU (W/m^2)
 const double SPEED_OF_LIGHT = 299792458.0;                 // Speed of light (m/s)
 const double SOLAR_PRESSURE = SOLAR_FLUX / SPEED_OF_LIGHT; // Pressure at 1 AU (N/m^2)
+
+static const double BOLTZMANN_CONSTANT = 1.380649e-23; // J/K
 
 #endif // CONSTANTS_H

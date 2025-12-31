@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include "Config.h"
+#include "AlertSystem.h"
 
 // Attitude control modes
 enum class AttitudeControlMode
@@ -34,9 +35,6 @@ public:
 
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
-
-  // Calculate complete orbital path (full orbit prediction)
-  void calculateOrbitPath(int numPoints = 100);
 
   // ADCS Control Loop (mirrors flight software architecture)
   void adcsControlLoop(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
@@ -97,6 +95,31 @@ public:
   double getPropellantFraction() const { return propellantMass / propellantMassInitial; }
   bool hasPropellant() const { return propellantMass > 0.1; } // At least 100g remaining
 
+  // Maneuver state telemetry
+  int getManeuverStateInt() const { return static_cast<int>(maneuverState); }
+  const char* getManeuverStateString() const {
+    switch(maneuverState) {
+      case ManeuverState::IDLE: return "IDLE";
+      case ManeuverState::BURN1_PENDING: return "BURN1 PENDING";
+      case ManeuverState::COASTING: return "COASTING";
+      case ManeuverState::BURN2_PENDING: return "BURN2 PENDING";
+      default: return "UNKNOWN";
+    }
+  }
+  double getBurn1DeltaV() const { return burn1DeltaV; }
+  double getBurn2DeltaV() const { return burn2DeltaV; }
+
+  // Orbital elements calculation
+  struct OrbitalElements {
+    double semiMajorAxis;  // meters
+    double eccentricity;   // dimensionless
+    double periapsis;      // meters
+    double apoapsis;       // meters
+    double inclination;    // radians
+    double trueAnomaly;    // radians
+  };
+  OrbitalElements getOrbitalElements(const glm::dvec3 &earthCenter) const;
+
   // Actuator configuration
   void enableReactionWheels(bool enable) { hasReactionWheels = enable; }
   void enableMagnetorquers(bool enable) { hasMagnetorquers = enable; }
@@ -138,6 +161,11 @@ public:
 
     resetIntegralError();
   }
+
+  // Alert system
+  AlertSystem& getAlertSystem() { return alertSystem; }
+  const AlertSystem& getAlertSystem() const { return alertSystem; }
+  void checkTelemetryLimits(); // Check all telemetry against limits and generate alerts
 
 private:
   // ========== ADCS FLIGHT SOFTWARE METHODS ==========
@@ -236,6 +264,18 @@ private:
   double stationKeepingCheckInterval = 60.0; // Check orbit every N seconds
   double timeSinceLastStationKeepingCheck = 0.0;
 
+  // Multi-burn maneuver state for Hohmann-like transfers
+  enum class ManeuverState {
+    IDLE,           // No active maneuver
+    BURN1_PENDING,  // Waiting for periapsis to execute first burn
+    COASTING,       // Coasting to apoapsis after first burn
+    BURN2_PENDING   // Waiting for apoapsis to execute second burn
+  };
+  ManeuverState maneuverState = ManeuverState::IDLE;
+  double burn1DeltaV = 0.0;  // Delta-V for first burn (at periapsis)
+  double burn2DeltaV = 0.0;  // Delta-V for second burn (at apoapsis)
+  double lastTrueAnomaly = 0.0; // Track orbital position for burn timing
+
   // Attitude control state
   AttitudeControlMode controlMode = AttitudeControlMode::NONE;
   ControlAlgorithm controlAlgorithm = ControlAlgorithm::PID;    // Default controller
@@ -290,12 +330,17 @@ private:
   bool inEclipse = false;              // Whether satellite is in Earth's shadow
 
   std::vector<glm::dvec3> footprintCircle; // Positions for drawing footprint circle
-  std::vector<glm::dvec3> orbitPath;       // Historical positions for drawing orbit
-  int orbitPathMaxSize = 1000;             // Maximum number of points to store
+  std::vector<glm::dvec3> orbitPath;       // Historical position trail (actual path traveled) - complete history since simulation start
+  int orbitPathSaveInterval = 10;          // Save position every N update iterations
+  int updateIterationCount = 0;            // Counter for update iterations
 
   int planeId;         // Orbital plane identifier
   int indexInPlane;    // Index of this satellite within its plane
   std::string name;    // Satellite name/identifier
+
+  // Alert system
+  AlertSystem alertSystem;
+  double timeSinceLastAlertCheck = 0.0; // Track time between alert checks
 };
 
 #endif // SATELLITE_H
