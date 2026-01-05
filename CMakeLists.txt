@@ -42,6 +42,8 @@ find_package(glm REQUIRED)
 # Add executable
 add_executable(simulation
     src/main.cpp
+    src/Simulation.cpp
+    src/GUI.cpp
     src/CelestialBody.cpp
     src/Universe.cpp
     src/Camera.cpp
