@@ -11,6 +11,7 @@ Renderer::Renderer()
     : sphereMesh(1.0f, 30, 30), // Unit sphere with 30x30 tessellation
       earthTextureLoaded(false),
       moonTextureLoaded(false),
+      sunTextureLoaded(false),
       starsTextureLoaded(false),
       starlinkMeshLoaded(false),
       initialized(false)
@@ -45,6 +46,13 @@ bool Renderer::initialize()
   if (!moonTextureLoaded)
   {
     std::cout << "Note: Moon texture not found. Using solid color. Place a Moon texture at 'textures/moon.jpg'" << std::endl;
+  }
+
+  // Load Sun texture
+  sunTextureLoaded = sunTexture.load("textures/sun.jpg");
+  if (!sunTextureLoaded)
+  {
+    std::cout << "Note: Sun texture not found. Using solid color. Place a Sun texture at 'textures/sun.jpg'" << std::endl;
   }
 
   // Load Stars texture for background
@@ -127,9 +135,6 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
   // Render satellites with all visualization options
   renderSatellites(universe.getSatellites(), vizState, selectedSatellite);
 
-  // Render power beams (requires selected satellite to be passed in)
-  // renderPowerBeams(universe.getGroundStations(), selectedSatellite);
-
   // Render coordinate axis overlay
   renderCoordinateAxis(camera, windowWidth, windowHeight);
 }
@@ -183,13 +188,10 @@ void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body, b
   glm::mat4 model = glm::mat4(1.0f);
   model = glm::translate(model, glm::vec3(body->getPosition()));
 
-  // Apply rotation for Earth
+  // Apply rotation for Earth's spin
   if (isEarth)
   {
-    // Apply base rotation to align texture with coordinate system
-    model = glm::rotate(model, glm::radians(90.0f), body->getRotationAxis());
-
-    // Apply time-based rotation for Earth's spin
+    // Apply time-based rotation for Earth's spin around Z-axis
     model = glm::rotate(model, body->getRotation(), body->getRotationAxis());
   }
 
@@ -201,10 +203,19 @@ void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body, b
   if (isSun)
   {
     // Sun is self-illuminated and very bright
-    glm::vec3 sunColor = body->getColor() * 3.0f; // Extra bright
-    sphereShader->setVec3("objectColor", sunColor);
-    sphereShader->setBool("useTexture", false);
+    sphereShader->setFloat("ambientStrength", 1.0f);
     sphereShader->setBool("isEmissive", true);
+
+    if (sunTextureLoaded)
+    {
+      sunTexture.bind(0);
+      sphereShader->setInt("textureSampler", 0);
+      sphereShader->setBool("useTexture", true);
+    }
+    else
+    {
+      sphereShader->setBool("useTexture", false);
+    }
   }
   else if (isEarth)
   {
@@ -250,180 +261,217 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
                                 const VisualizationState &vizState,
                                 const Satellite *selectedSatellite)
 {
-  // ========== RENDER ORBIT PATHS ==========
+  // Single loop through all satellites, rendering each component as needed
+  for (const auto &satellite : satellites)
+  {
+    // Render historical orbit path
+    if (vizState.shouldDrawOrbit(satellite.get()))
+    {
+      renderSatelliteOrbitPath(satellite, vizState);
+    }
+
+    // Render predicted future orbit (only for selected satellite)
+    if (selectedSatellite && satellite.get() == selectedSatellite)
+    {
+      renderSatellitePredictedOrbit(satellite, selectedSatellite);
+    }
+
+    // Render satellite 3D geometry (always rendered)
+    renderSatelliteGeometry(satellite);
+
+    // Render ground footprint circle
+    if (vizState.shouldDrawFootprint(satellite.get()))
+    {
+      renderSatelliteFootprint(satellite, vizState);
+    }
+
+    // Render attitude pointing vector
+    if (vizState.shouldDrawAttitudeVector(satellite.get()))
+    {
+      renderSatelliteAttitudeVector(satellite, vizState);
+    }
+  }
+}
+
+// ========================================
+// SATELLITE RENDER HELPER FUNCTIONS
+// ========================================
+
+void Renderer::renderSatelliteOrbitPath(const std::shared_ptr<Satellite> &satellite,
+                                        const VisualizationState &vizState)
+{
+  const auto &orbitPath = satellite->getOrbitPath();
+  if (orbitPath.size() < 2)
+    return;
+
+  // Convert dvec3 to vec3 for rendering
+  std::vector<glm::vec3> pathVertices;
+  pathVertices.reserve(orbitPath.size());
+  for (const auto &pos : orbitPath)
+  {
+    pathVertices.push_back(glm::vec3(pos));
+  }
+
+  lineRenderer.setVertices(pathVertices);
+
+  // Setup line rendering
   glLineWidth(10.0f);
   lineShader->use();
+  glm::vec3 orbitColor = satellite->getColor();
+  lineShader->setVec3("lineColor", orbitColor);
+  lineRenderer.draw();
+  glLineWidth(2.0f); // Reset
+}
 
-  for (const auto &satellite : satellites)
+void Renderer::renderSatellitePredictedOrbit(const std::shared_ptr<Satellite> &satellite,
+                                             const Satellite *selectedSatellite)
+{
+  const auto &predictedPath = satellite->getPredictedOrbit();
+  if (predictedPath.size() < 2)
+    return;
+
+  // Convert dvec3 to vec3 for rendering
+  std::vector<glm::vec3> predVertices;
+  predVertices.reserve(predictedPath.size());
+  for (const auto &pos : predictedPath)
   {
-    // Check if we should draw orbit for this satellite
-    if (!vizState.shouldDrawOrbit(satellite.get()))
-      continue;
-
-    const auto &orbitPath = satellite->getOrbitPath();
-    if (orbitPath.size() >= 2)
-    {
-      // Convert dvec3 to vec3 for rendering
-      std::vector<glm::vec3> pathVertices;
-      pathVertices.reserve(orbitPath.size());
-      for (const auto &pos : orbitPath)
-      {
-        pathVertices.push_back(glm::vec3(pos));
-      }
-
-      lineRenderer.setVertices(pathVertices);
-
-      // Make orbit lines slightly dimmer than satellites
-      glm::vec3 orbitColor = satellite->getColor();
-      lineShader->setVec3("lineColor", orbitColor);
-      lineRenderer.draw();
-    }
+    predVertices.push_back(glm::vec3(pos));
   }
-  glLineWidth(2.0f); // Reset to normal line width
 
-  // ========== RENDER SATELLITE GEOMETRY ==========
+  lineRenderer.setVertices(predVertices);
+
+  // Setup line rendering (cyan color for predicted orbit)
+  glLineWidth(10.0f);
+  lineShader->use();
+  glm::vec3 predictedColor = glm::vec3(0.3f, 0.8f, 1.0f); // Cyan
+  lineShader->setVec3("lineColor", predictedColor);
+  lineRenderer.draw();
+  glLineWidth(2.0f); // Reset
+}
+
+void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite)
+{
+  glm::vec3 satPos = glm::vec3(satellite->getPosition());
+
+  // Get satellite attitude (quaternion -> rotation matrix)
+  glm::quat attitudeQuat = glm::quat(satellite->getQuaternion());
+  glm::mat4 attitudeMatrix = glm::mat4_cast(attitudeQuat);
+
+  // Setup shader for satellite rendering
   sphereShader->use();
   sphereShader->setBool("useTexture", false);
-  sphereShader->setFloat("ambientStrength", 1.0f); // Full brightness for emissive
-  sphereShader->setBool("isEmissive", true);       // Satellites are self-illuminated (always visible)
+  sphereShader->setFloat("ambientStrength", 1.0f);
+  sphereShader->setBool("isEmissive", true); // Satellites are self-illuminated
 
-  for (const auto &satellite : satellites)
+  // Check satellite type for specialized mesh
+  bool isStarlink = satellite->getName().find("Starlink") != std::string::npos;
+  bool isCubesat1U = satellite->getName().find("Cubesat1U") != std::string::npos;
+  bool isCubesat2U = satellite->getName().find("Cubesat2U") != std::string::npos;
+
+  if ((isStarlink && starlinkMeshLoaded) || (isCubesat1U && cubesat1UMeshLoaded) || (isCubesat2U && cubesat2UMeshLoaded))
   {
-    glm::vec3 satPos = glm::vec3(satellite->getPosition());
+    // Render 3D model with materials
+    glm::mat4 meshModel = glm::mat4(1.0f);
+    meshModel = glm::translate(meshModel, satPos);
+    meshModel = meshModel * attitudeMatrix;
+    meshModel = glm::scale(meshModel, glm::vec3(0.8e4f)); // ~8km scale
+    sphereShader->setMat4("model", meshModel);
 
-    // Get satellite attitude (quaternion -> rotation matrix)
-    glm::quat attitudeQuat = glm::quat(satellite->getQuaternion()); // Convert dquat to quat
-    glm::mat4 attitudeMatrix = glm::mat4_cast(attitudeQuat);
+    if (isStarlink)
+      starlinkMesh.draw(*sphereShader);
+    else if (isCubesat1U)
+      cubesat1UMesh.draw(*sphereShader);
+    else if (isCubesat2U)
+      cubesat2UMesh.draw(*sphereShader);
+  }
+  else
+  {
+    // Fallback: Simple geometry (cube + solar panels)
+    glm::vec3 brightColor = satellite->getColor() * 2.0f;
+    sphereShader->setVec3("objectColor", brightColor);
 
-    // Check if this is a Starlink satellite and we have the mesh loaded
-    bool isStarlink = satellite->getName().find("Starlink") != std::string::npos;
-    bool isCubesat1U = satellite->getName().find("Cubesat1U") != std::string::npos;
-    bool isCubesat2U = satellite->getName().find("Cubesat2U") != std::string::npos;
+    // Central body
+    glm::mat4 bodyModel = glm::mat4(1.0f);
+    bodyModel = glm::translate(bodyModel, satPos);
+    bodyModel = bodyModel * attitudeMatrix;
+    bodyModel = glm::scale(bodyModel, glm::vec3(1.6e4f, 2.4e4f, 1.6e4f));
+    sphereShader->setMat4("model", bodyModel);
+    cubeMesh.draw();
 
-    if ((isStarlink && starlinkMeshLoaded) || (isCubesat1U && cubesat1UMeshLoaded) || (isCubesat2U && cubesat2UMeshLoaded))
-    {
-      // Render 3D model with materials from MTL file
-      // Don't set objectColor here - let the mesh draw() method handle materials
-      glm::mat4 meshModel = glm::mat4(1.0f);
-      meshModel = glm::translate(meshModel, satPos);
-      meshModel = meshModel * attitudeMatrix;               // Apply attitude rotation
-      meshModel = glm::scale(meshModel, glm::vec3(0.8e4f)); // Much smaller: ~8km (was 50km)
-      sphereShader->setMat4("model", meshModel);
+    // Solar panels (blue color)
+    glm::vec3 panelColor = glm::vec3(0.4f, 0.6f, 1.0f);
+    sphereShader->setVec3("objectColor", panelColor);
 
-      if (isStarlink)
-      {
-        starlinkMesh.draw(*sphereShader);
-      }
-      else if (isCubesat1U)
-      {
-        cubesat1UMesh.draw(*sphereShader);
-      }
-      else if (isCubesat2U)
-      {
-        cubesat2UMesh.draw(*sphereShader);
-      }
-    }
-    else
-    {
-      // Fall back to simple geometry (cube + solar panels) - reduced size
-      // Set color for simple geometry
-      glm::vec3 brightColor = satellite->getColor() * 2.0f; // Make satellites very bright
-      sphereShader->setVec3("objectColor", brightColor);
+    // Left panel
+    glm::mat4 leftPanelModel = glm::mat4(1.0f);
+    leftPanelModel = glm::translate(leftPanelModel, satPos);
+    leftPanelModel = leftPanelModel * attitudeMatrix;
+    leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-3.0e4f, 0.0f, 0.0f));
+    leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
+    sphereShader->setMat4("model", leftPanelModel);
+    cubeMesh.draw();
 
-      // Render central body (elongated box) - 5x smaller than before
-      glm::mat4 bodyModel = glm::mat4(1.0f);
-      bodyModel = glm::translate(bodyModel, satPos);
-      bodyModel = bodyModel * attitudeMatrix;                               // Apply attitude rotation
-      bodyModel = glm::scale(bodyModel, glm::vec3(1.6e4f, 2.4e4f, 1.6e4f)); // 16km x 24km x 16km (was 80x120x80)
-      sphereShader->setMat4("model", bodyModel);
-      cubeMesh.draw();
+    // Right panel
+    glm::mat4 rightPanelModel = glm::mat4(1.0f);
+    rightPanelModel = glm::translate(rightPanelModel, satPos);
+    rightPanelModel = rightPanelModel * attitudeMatrix;
+    rightPanelModel = glm::translate(rightPanelModel, glm::vec3(3.0e4f, 0.0f, 0.0f));
+    rightPanelModel = glm::scale(rightPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
+    sphereShader->setMat4("model", rightPanelModel);
+    cubeMesh.draw();
+  }
+}
 
-      // Render left solar panel (thin flat box) - 5x smaller
-      glm::mat4 leftPanelModel = glm::mat4(1.0f);
-      leftPanelModel = glm::translate(leftPanelModel, satPos);
-      leftPanelModel = leftPanelModel * attitudeMatrix;                                // Apply attitude rotation
-      leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-3.0e4f, 0.0f, 0.0f)); // Offset to the left (in body frame)
-      leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));  // 40km x 36km x 4km (was 200x180x20)
-      sphereShader->setMat4("model", leftPanelModel);
+void Renderer::renderSatelliteFootprint(const std::shared_ptr<Satellite> &satellite,
+                                        const VisualizationState &vizState)
+{
+  const auto &footprintCircle = satellite->getFootprintCircle();
+  if (footprintCircle.size() < 2)
+    return;
 
-      // Make solar panels brighter blue (self-illuminated)
-      glm::vec3 panelColor = glm::vec3(0.4f, 0.6f, 1.0f); // Brighter blue
-      sphereShader->setVec3("objectColor", panelColor);
-      cubeMesh.draw();
-
-      // Render right solar panel - 5x smaller
-      glm::mat4 rightPanelModel = glm::mat4(1.0f);
-      rightPanelModel = glm::translate(rightPanelModel, satPos);
-      rightPanelModel = rightPanelModel * attitudeMatrix;                               // Apply attitude rotation
-      rightPanelModel = glm::translate(rightPanelModel, glm::vec3(3.0e4f, 0.0f, 0.0f)); // Offset to the right (in body frame)
-      rightPanelModel = glm::scale(rightPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f)); // 40km x 36km x 4km (was 200x180x20)
-      sphereShader->setMat4("model", rightPanelModel);
-      sphereShader->setVec3("objectColor", panelColor);
-      cubeMesh.draw();
-    }
+  // Convert dvec3 to vec3 for rendering
+  std::vector<glm::vec3> footprintVertices;
+  footprintVertices.reserve(footprintCircle.size());
+  for (const auto &pos : footprintCircle)
+  {
+    footprintVertices.push_back(glm::vec3(pos));
   }
 
-  // ========== RENDER FOOTPRINTS ==========
-  lineShader->use();
+  lineRenderer.setVertices(footprintVertices);
+
+  // Setup line rendering (yellow-green for footprint)
   glLineWidth(2.0f);
-
-  for (const auto &satellite : satellites)
-  {
-    // Check if we should draw footprint for this satellite
-    if (!vizState.shouldDrawFootprint(satellite.get()))
-      continue;
-
-    const auto &footprintCircle = satellite->getFootprintCircle();
-    if (footprintCircle.size() >= 2)
-    {
-      // Convert dvec3 to vec3 for rendering
-      std::vector<glm::vec3> footprintVertices;
-      footprintVertices.reserve(footprintCircle.size());
-      for (const auto &pos : footprintCircle)
-      {
-        footprintVertices.push_back(glm::vec3(pos));
-      }
-
-      lineRenderer.setVertices(footprintVertices);
-
-      // Use a semi-transparent yellow/green color for footprint circles
-      glm::vec3 footprintColor = glm::vec3(0.8f, 1.0f, 0.3f); // Yellow-green
-      lineShader->setVec3("lineColor", footprintColor);
-      lineRenderer.draw();
-    }
-  }
-
-  // ========== RENDER ATTITUDE VECTORS ==========
-  glLineWidth(3.0f); // Thicker line for attitude arrow
   lineShader->use();
+  glm::vec3 footprintColor = glm::vec3(0.8f, 1.0f, 0.3f);
+  lineShader->setVec3("lineColor", footprintColor);
+  lineRenderer.draw();
+}
 
-  for (const auto &satellite : satellites)
-  {
-    // Check if we should draw attitude vector for this satellite
-    if (!vizState.shouldDrawAttitudeVector(satellite.get()))
-      continue;
+void Renderer::renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite,
+                                             const VisualizationState &vizState)
+{
+  // Get satellite position and pointing direction (Z-axis in body frame)
+  glm::dvec3 satPos = satellite->getPosition();
+  glm::dvec3 zAxis = satellite->getBodyZAxis();
 
-    // Get satellite position and pointing direction (Z-axis in body frame)
-    glm::dvec3 satPos = satellite->getPosition();
-    glm::dvec3 zAxis = satellite->getBodyZAxis();
+  // Scale arrow to be visible (500 km long)
+  double arrowLength = 500e3;
+  glm::dvec3 arrowEnd = satPos + zAxis * arrowLength;
 
-    // Scale arrow to be visible (e.g., 500 km long)
-    double arrowLength = 500e3; // 500 km
-    glm::dvec3 arrowEnd = satPos + zAxis * arrowLength;
+  // Create arrow vertices
+  std::vector<glm::vec3> attitudeArrow = {
+      glm::vec3(satPos),
+      glm::vec3(arrowEnd)};
 
-    // Create arrow vertices
-    std::vector<glm::vec3> attitudeArrow = {
-        glm::vec3(satPos),
-        glm::vec3(arrowEnd)};
+  lineRenderer.setVertices(attitudeArrow);
 
-    lineRenderer.setVertices(attitudeArrow);
-
-    // Use bright red for attitude vector
-    glm::vec3 attitudeColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red
-    lineShader->setVec3("lineColor", attitudeColor);
-    lineRenderer.draw();
-  }
-  glLineWidth(2.0f); // Reset to normal line width
+  // Setup line rendering (red for attitude vector)
+  glLineWidth(3.0f);
+  lineShader->use();
+  glm::vec3 attitudeColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red
+  lineShader->setVec3("lineColor", attitudeColor);
+  lineRenderer.draw();
+  glLineWidth(2.0f); // Reset
 }
 
 void Renderer::renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations)
@@ -450,39 +498,6 @@ void Renderer::renderGroundStations(const std::vector<std::shared_ptr<GroundStat
   }
 }
 
-void Renderer::renderPowerBeams(const std::vector<std::shared_ptr<GroundStation>> &groundStations, const Satellite *selectedSatellite)
-{
-  if (!selectedSatellite)
-    return;
-
-  glLineWidth(2.0f);
-  lineShader->use();
-
-  for (const auto &groundStation : groundStations)
-  {
-    // Draw beams to all visible satellites
-    for (const auto &satellite : groundStation->getVisibleSatellites())
-    {
-      if (satellite.get() != selectedSatellite)
-      {
-        continue;
-      }
-
-      // Draw power beam from ground station to satellite
-      std::vector<glm::vec3> beamVertices;
-      beamVertices.push_back(glm::vec3(groundStation->getPosition()));
-      beamVertices.push_back(glm::vec3(satellite->getPosition()));
-
-      lineRenderer.setVertices(beamVertices);
-
-      // Use bright yellow/orange color for energy beam
-      glm::vec3 beamColor = glm::vec3(1.0f, 0.8f, 0.1f); // Bright yellow-orange
-      lineShader->setVec3("lineColor", beamColor);
-      lineRenderer.draw();
-    }
-  }
-}
-
 void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight)
 {
   // Save current viewport
@@ -490,7 +505,7 @@ void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int w
   glGetIntegerv(GL_VIEWPORT, viewport);
 
   // Set viewport for axis display in bottom left corner
-  int axisSize = 200; // Size of the axis display area (200x200 pixels)
+  int axisSize = 350; // Size of the axis display area (200x200 pixels)
   int margin = 10;    // Margin from the corner
   glViewport(margin, margin, axisSize, axisSize);
 
@@ -511,7 +526,7 @@ void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int w
   lineShader->setMat4("projection", projection);
 
   // Increase line width for better visibility
-  glLineWidth(3.0f);
+  glLineWidth(10.0f);
 
   // Draw X axis (red)
   std::vector<glm::vec3> xAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)};

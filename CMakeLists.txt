@@ -57,7 +57,7 @@ add_executable(simulation
     src/LineRenderer.cpp
     src/MathUtils.cpp
     src/Renderer.cpp
-    src/Config.cpp
+    src/Orbit.cpp
     src/OBJMesh.cpp
 
     # ImGui core

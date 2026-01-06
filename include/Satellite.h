@@ -5,7 +5,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
 #include <string>
-#include "Config.h"
+#include "Orbit.h"
 #include "AlertSystem.h"
 
 // Attitude control modes
@@ -36,6 +36,9 @@ public:
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
 
+  // Custom satellite flight software
+  void runFlightSoftware(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
+
   // ADCS Control Loop (mirrors flight software architecture)
   void adcsControlLoop(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
 
@@ -50,10 +53,16 @@ public:
   glm::dvec3 getVelocity() const { return velocity; }
   glm::vec3 getColor() const { return color; }
   const std::vector<glm::dvec3> &getOrbitPath() const { return orbitPath; }
+  const std::vector<glm::dvec3> &getPredictedOrbit() const { return predictedOrbitPath; }
   const std::vector<glm::dvec3> &getFootprintCircle() const { return footprintCircle; }
   int getPlaneId() const { return planeId; }
   int getIndexInPlane() const { return indexInPlane; }
   std::string getName() const { return name; }
+
+  // Orbit prediction
+  void calculatePredictedOrbit(const glm::dvec3 &earthCenter, double earthMass,
+                               const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition,
+                               double predictionDuration, int numPoints = 500);
   bool shouldDrawOrbit() const
   {
     // For Molniya satellites (planeId -2), draw all orbits since each is in a different plane
@@ -97,26 +106,34 @@ public:
 
   // Maneuver state telemetry
   int getManeuverStateInt() const { return static_cast<int>(maneuverState); }
-  const char* getManeuverStateString() const {
-    switch(maneuverState) {
-      case ManeuverState::IDLE: return "IDLE";
-      case ManeuverState::BURN1_PENDING: return "BURN1 PENDING";
-      case ManeuverState::COASTING: return "COASTING";
-      case ManeuverState::BURN2_PENDING: return "BURN2 PENDING";
-      default: return "UNKNOWN";
+  const char *getManeuverStateString() const
+  {
+    switch (maneuverState)
+    {
+    case ManeuverState::IDLE:
+      return "IDLE";
+    case ManeuverState::BURN1_PENDING:
+      return "BURN1 PENDING";
+    case ManeuverState::COASTING:
+      return "COASTING";
+    case ManeuverState::BURN2_PENDING:
+      return "BURN2 PENDING";
+    default:
+      return "UNKNOWN";
     }
   }
   double getBurn1DeltaV() const { return burn1DeltaV; }
   double getBurn2DeltaV() const { return burn2DeltaV; }
 
   // Orbital elements calculation
-  struct OrbitalElements {
-    double semiMajorAxis;  // meters
-    double eccentricity;   // dimensionless
-    double periapsis;      // meters
-    double apoapsis;       // meters
-    double inclination;    // radians
-    double trueAnomaly;    // radians
+  struct OrbitalElements
+  {
+    double semiMajorAxis; // meters
+    double eccentricity;  // dimensionless
+    double periapsis;     // meters
+    double apoapsis;      // meters
+    double inclination;   // radians
+    double trueAnomaly;   // radians
   };
   OrbitalElements getOrbitalElements(const glm::dvec3 &earthCenter) const;
 
@@ -163,8 +180,8 @@ public:
   }
 
   // Alert system
-  AlertSystem& getAlertSystem() { return alertSystem; }
-  const AlertSystem& getAlertSystem() const { return alertSystem; }
+  AlertSystem &getAlertSystem() { return alertSystem; }
+  const AlertSystem &getAlertSystem() const { return alertSystem; }
   void checkTelemetryLimits(); // Check all telemetry against limits and generate alerts
 
 private:
@@ -251,29 +268,30 @@ private:
   // ========== PROPULSION SYSTEM (Station Keeping) ==========
   // Hall Effect Thruster (typical for Starlink-class satellites)
   bool hasThrusters = false;
-  double thrusterMaxThrust = 0.25;        // Maximum thrust per thruster (N) - typical Hall thruster
-  double thrusterIsp = 1800.0;            // Specific impulse (seconds) - Hall effect typical range
-  double propellantMass = 50.0;           // Propellant mass (kg) - Krypton or Xenon
-  double propellantMassInitial = 50.0;    // Initial propellant mass (for tracking consumption)
-  double thrusterEfficiency = 0.55;       // Thruster efficiency (0-1) - typical for Hall thrusters
+  double thrusterMaxThrust = 0.25;     // Maximum thrust per thruster (N) - typical Hall thruster
+  double thrusterIsp = 1800.0;         // Specific impulse (seconds) - Hall effect typical range
+  double propellantMass = 50.0;        // Propellant mass (kg) - Krypton or Xenon
+  double propellantMassInitial = 50.0; // Initial propellant mass (for tracking consumption)
+  double thrusterEfficiency = 0.55;    // Thruster efficiency (0-1) - typical for Hall thrusters
 
   // Station keeping configuration
   bool stationKeepingEnabled = false;
-  double targetSemiMajorAxis = 0.0;       // Target semi-major axis (m) - orbit to maintain
-  double stationKeepingDeadband = 500.0;  // Altitude deadband (m) - don't burn unless outside this
+  double targetSemiMajorAxis = 0.0;          // Target semi-major axis (m) - orbit to maintain
+  double stationKeepingDeadband = 500.0;     // Altitude deadband (m) - don't burn unless outside this
   double stationKeepingCheckInterval = 60.0; // Check orbit every N seconds
   double timeSinceLastStationKeepingCheck = 0.0;
 
   // Multi-burn maneuver state for Hohmann-like transfers
-  enum class ManeuverState {
-    IDLE,           // No active maneuver
-    BURN1_PENDING,  // Waiting for periapsis to execute first burn
-    COASTING,       // Coasting to apoapsis after first burn
-    BURN2_PENDING   // Waiting for apoapsis to execute second burn
+  enum class ManeuverState
+  {
+    IDLE,          // No active maneuver
+    BURN1_PENDING, // Waiting for periapsis to execute first burn
+    COASTING,      // Coasting to apoapsis after first burn
+    BURN2_PENDING  // Waiting for apoapsis to execute second burn
   };
   ManeuverState maneuverState = ManeuverState::IDLE;
-  double burn1DeltaV = 0.0;  // Delta-V for first burn (at periapsis)
-  double burn2DeltaV = 0.0;  // Delta-V for second burn (at apoapsis)
+  double burn1DeltaV = 0.0;     // Delta-V for first burn (at periapsis)
+  double burn2DeltaV = 0.0;     // Delta-V for second burn (at apoapsis)
   double lastTrueAnomaly = 0.0; // Track orbital position for burn timing
 
   // Attitude control state
@@ -305,38 +323,39 @@ private:
 
   // ========== POWER SYSTEM ==========
   // Battery properties (Lithium-ion typical for satellites)
-  double batteryCapacity = 100.0;      // Battery capacity in Watt-hours (Wh)
-  double batteryCharge = 100.0;        // Current battery charge (Wh) - start fully charged
-  double batteryVoltage = 28.0;        // Battery bus voltage (V) - typical satellite bus voltage
-  double batteryMinCharge = 10.0;      // Minimum safe charge (Wh) - 10% reserve
-  double batteryChargeEfficiency = 0.95; // Charging efficiency (95%)
+  double batteryCapacity = 100.0;           // Battery capacity in Watt-hours (Wh)
+  double batteryCharge = 100.0;             // Current battery charge (Wh) - start fully charged
+  double batteryVoltage = 28.0;             // Battery bus voltage (V) - typical satellite bus voltage
+  double batteryMinCharge = 10.0;           // Minimum safe charge (Wh) - 10% reserve
+  double batteryChargeEfficiency = 0.95;    // Charging efficiency (95%)
   double batteryDischargeEfficiency = 0.98; // Discharge efficiency (98%)
 
   // Solar panel properties
-  double solarPanelArea = 20.0;        // Total solar panel area (m²) - typical for small sat
-  double solarPanelEfficiency = 0.30;  // Solar cell efficiency (30% - multi-junction cells)
-  double solarPanelDegradation = 1.0;  // Panel degradation factor (1.0 = new, decreases over time)
+  double solarPanelArea = 20.0;       // Total solar panel area (m²) - typical for small sat
+  double solarPanelEfficiency = 0.30; // Solar cell efficiency (30% - multi-junction cells)
+  double solarPanelDegradation = 1.0; // Panel degradation factor (1.0 = new, decreases over time)
 
   // Power consumption rates (Watts)
-  double basePowerConsumption = 50.0;  // Avionics, computer, comms baseline (W)
-  double reactionWheelPower = 10.0;    // Power per active reaction wheel (W)
-  double magnetorquerPower = 5.0;      // Power for magnetorquers (W)
-  double cmgPower = 15.0;              // Power per CMG (W)
-  double thrusterPower = 250.0;        // Power for Hall effect thruster (W)
+  double basePowerConsumption = 50.0; // Avionics, computer, comms baseline (W)
+  double reactionWheelPower = 10.0;   // Power per active reaction wheel (W)
+  double magnetorquerPower = 5.0;     // Power for magnetorquers (W)
+  double cmgPower = 15.0;             // Power per CMG (W)
+  double thrusterPower = 250.0;       // Power for Hall effect thruster (W)
 
   // Current power state
-  double currentPowerGeneration = 0.0; // Current power generation (W)
+  double currentPowerGeneration = 0.0;  // Current power generation (W)
   double currentPowerConsumption = 0.0; // Current power consumption (W)
-  bool inEclipse = false;              // Whether satellite is in Earth's shadow
+  bool inEclipse = false;               // Whether satellite is in Earth's shadow
 
-  std::vector<glm::dvec3> footprintCircle; // Positions for drawing footprint circle
-  std::vector<glm::dvec3> orbitPath;       // Historical position trail (actual path traveled) - complete history since simulation start
-  int orbitPathSaveInterval = 10;          // Save position every N update iterations
-  int updateIterationCount = 0;            // Counter for update iterations
+  std::vector<glm::dvec3> footprintCircle;    // Positions for drawing footprint circle
+  std::vector<glm::dvec3> orbitPath;          // Historical position trail (actual path traveled) - complete history since simulation start
+  std::vector<glm::dvec3> predictedOrbitPath; // Predicted future orbit path (calculated on demand)
+  int orbitPathSaveInterval = 10;             // Save position every N update iterations
+  int updateIterationCount = 0;               // Counter for update iterations
 
-  int planeId;         // Orbital plane identifier
-  int indexInPlane;    // Index of this satellite within its plane
-  std::string name;    // Satellite name/identifier
+  int planeId;      // Orbital plane identifier
+  int indexInPlane; // Index of this satellite within its plane
+  std::string name; // Satellite name/identifier
 
   // Alert system
   AlertSystem alertSystem;

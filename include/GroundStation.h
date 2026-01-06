@@ -65,10 +65,9 @@ public:
   // Setters
   void setConnectedSatellite(std::shared_ptr<Satellite> satellite) { connectedSatellite = satellite; }
   void addVisibleSatellite(std::shared_ptr<Satellite> satellite) { visibleSatellites.push_back(satellite); }
-  void clearVisibleSatellites() { visibleSatellites.clear(); }
 
   // Update position based on Earth's rotation
-  void updatePosition(double earthRotation, const glm::vec3 &rotationAxis);
+  void update(double earthRotation, const glm::vec3 &rotationAxis);
 
   // Check if connected to a satellite
   bool isConnected() const { return connectedSatellite != nullptr; }

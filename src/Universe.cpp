@@ -1,6 +1,6 @@
 #include "Universe.h"
 #include "Constants.h"
-#include "Config.h"
+#include "Orbit.h"
 #include "MathUtils.h"
 #include "GroundStation.h"
 #include <cmath>
@@ -12,8 +12,11 @@
 
 Universe::Universe()
 {
-  /* CUSTOMIZE SIMULATION HERE */
+  /* DO NOT CHANGE */
   initializeEarthSunAndMoon();
+
+  /*=============== CUSTOMIZE SIMULATION HERE ===============*/
+
   addGPSConstellation();
   addGEOConstellation();
   addStarlinkConstellation(8, 4); // numPlanes, satsPerPlane
@@ -38,6 +41,8 @@ Universe::Universe()
 
   satellites.push_back(cube1U);
   satellites.push_back(cube2U);
+
+  /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 }
 
 std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
@@ -66,9 +71,9 @@ void Universe::initializeEarthSunAndMoon()
 {
   // ========== EARTH ==========
   // Create Earth at origin
-  // Equatorial plane is horizontal (XZ plane), rotation axis is Y-axis
-  // North pole points up (+Y), equator is in XZ plane
-  glm::vec3 earthRotationAxis(0.0f, 1.0f, 0.0f); // Vertical (Y-axis)
+  // Equatorial plane is horizontal (XY plane), rotation axis is Z-axis
+  // North pole points up (+Z), equator is in XY plane
+  glm::vec3 earthRotationAxis(0.0f, 0.0f, 1.0f);
 
   earth = std::make_shared<CelestialBody>(
       glm::dvec3(0.0, 0.0, 0.0), // Position at origin
@@ -82,19 +87,19 @@ void Universe::initializeEarthSunAndMoon()
   // ========== SUN ==========
   // Position sun for northern hemisphere summer (June 21st)
   // At summer solstice, sun is 23.44° above the ecliptic (which is tilted from equator)
-  // Since equatorial plane is XZ (horizontal), ecliptic is tilted by obliquity
+  // Since equatorial plane is XY (horizontal), ecliptic is tilted by obliquity
   // Sun should be above the equatorial plane by +23.44° for northern summer
   double sunElevationAngle = ECLIPTIC_OBLIQUITY * PI / 180.0; // radians
 
   // Place sun at 1 AU distance, elevated above equatorial plane for northern summer
-  // Sun in +X direction (local noon for observer at 0° longitude), elevated in +Y
+  // Sun in +X direction (local noon for observer at 0° longitude), elevated in +Z
   glm::dvec3 sunPosition(
       AU * cos(sunElevationAngle), // X component (reduced due to elevation)
-      AU * sin(sunElevationAngle), // Y component (elevated for northern summer)
-      0.0                          // Z component
+      0.0,                         // Y component
+      AU * sin(sunElevationAngle)  // Z component
   );
 
-  glm::vec3 sunRotationAxis(0.0f, 1.0f, 0.0f);      // Sun also rotates around Y-axis
+  glm::vec3 sunRotationAxis(0.0f, 0.0f, 1.0f);      // Sun also rotates around Z-axis
   double sunRotationPeriod = 25.38 * 24.0 * 3600.0; // 25.38 days at equator
   double sunRotationAngularVelocity = 2.0 * PI / sunRotationPeriod;
 
@@ -117,15 +122,18 @@ void Universe::initializeEarthSunAndMoon()
   double periapsis = MOON_SEMI_MAJOR_AXIS * (1.0 - MOON_ECCENTRICITY);
 
   // Moon's orbital plane is inclined to ecliptic by 5.145°
-  // Ecliptic is the XZ plane tilted by 23.44° from equator
-  // We'll place moon in a plane inclined from the ecliptic
+  // For Z-up: Ecliptic is tilted from XY (equatorial) plane by 23.44°
+  // We'll place moon in the ecliptic plane with additional 5.145° inclination
+  double eclipticTilt = ECLIPTIC_OBLIQUITY * PI / 180.0;
   double moonInclination = MOON_INCLINATION_TO_ECLIPTIC * PI / 180.0;
+  double totalInclination = eclipticTilt + moonInclination;
 
-  // Initial position: periapsis in XZ plane (ecliptic), then apply inclination
+  // Initial position: periapsis in the orbital plane
+  // Place moon at X direction with inclination applied
   glm::dvec3 moonPosition(
-      periapsis * cos(moonInclination), // X
-      periapsis * sin(moonInclination), // Y (small, due to inclination)
-      0.0                               // Z
+      periapsis * cos(totalInclination), // X component (reduced by inclination)
+      0.0,                                // Y component (in XY plane initially)
+      periapsis * sin(totalInclination)  // Z component (vertical offset from equator)
   );
 
   // Calculate orbital velocity at periapsis using vis-viva equation
@@ -133,21 +141,20 @@ void Universe::initializeEarthSunAndMoon()
   double mu = G * EARTH_MASS;
   double moonVelocity = sqrt(mu * (2.0 / periapsis - 1.0 / MOON_SEMI_MAJOR_AXIS));
 
-  // Velocity perpendicular to position, in the orbital plane
+  // Velocity perpendicular to position, in the orbital plane (mainly Y direction)
   glm::dvec3 moonVel(
-      0.0,                                 // X
-      moonVelocity * cos(moonInclination), // Y component
-      -moonVelocity                        // Z component (tangent to orbit)
+      -moonVelocity * sin(totalInclination), // X component (small, due to inclination)
+      moonVelocity * cos(totalInclination),  // Y component (main direction)
+      0.0                                     // Z component
   );
 
   // Moon's rotation axis is tilted 6.68° from its orbital plane normal
-  // Since orbital plane is inclined, we need to compute the rotation axis
-  // For simplicity, approximate rotation axis close to Y with small tilt
+  // For Z-up, approximate rotation axis close to Z with small tilt
   double moonAxisTilt = MOON_AXIAL_TILT * PI / 180.0;
   glm::vec3 moonRotationAxis(
       sin(moonAxisTilt), // Small X component due to tilt
-      cos(moonAxisTilt), // Mostly vertical (Y)
-      0.0f               // Z
+      0.0f,              // Y
+      cos(moonAxisTilt)  // Mostly vertical (Z)
   );
 
   moon = std::make_shared<CelestialBody>(
@@ -348,28 +355,6 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     // ========== UPDATE ALL SATELLITES ==========
     for (auto &satellite : satellites)
     {
-      // Find closest ground station for target tracking
-      if (!groundStations.empty())
-      {
-        double minDistance = std::numeric_limits<double>::max();
-        glm::dvec3 closestStationPos;
-
-        for (const auto &station : groundStations)
-        {
-          glm::dvec3 stationPos = station->getPosition();
-          double distance = glm::length(satellite->getPosition() - stationPos);
-
-          if (distance < minDistance)
-          {
-            minDistance = distance;
-            closestStationPos = stationPos;
-          }
-        }
-
-        // Update satellite's tracking target
-        satellite->updateTargetTracking(closestStationPos);
-      }
-
       // Update satellite (handles both ADCS and orbital dynamics internally)
       satellite->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition());
     }
@@ -381,19 +366,7 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
   // Ground stations rotate with Earth
   for (auto &groundStation : groundStations)
   {
-    groundStation->updatePosition(earth->getRotation(), earth->getRotationAxis());
-
-    // Clear previous frame's visible satellites
-    groundStation->clearVisibleSatellites();
-
-    // Find all visible satellites for this ground station
-    for (auto &satellite : satellites)
-    {
-      if (groundStation->isSatelliteVisible(satellite->getPosition(), earth->getPosition()))
-      {
-        groundStation->addVisibleSatellite(satellite);
-      }
-    }
+    groundStation->update(earth->getRotation(), earth->getRotationAxis());
   }
 }
 

@@ -18,7 +18,7 @@
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 800
 
-GUI::GUI(int screenWidth, int screenHeight, Simulation* simulation)
+GUI::GUI(int screenWidth, int screenHeight, Simulation *simulation)
     : m_simulation(simulation),
       m_window(nullptr),
       m_windowWidth(screenWidth),
@@ -33,8 +33,7 @@ GUI::GUI(int screenWidth, int screenHeight, Simulation* simulation)
       m_clickMouseX(0.0),
       m_clickMouseY(0.0),
       m_currentTheta(0.0f),
-      m_currentPhi(0.0f),
-      m_lastTitleUpdateTime(0.0f)
+      m_currentPhi(0.0f)
 {
   std::cout << "GUI: Starting initialization..." << std::endl;
   initWindow(screenWidth, screenHeight);
@@ -135,7 +134,7 @@ void GUI::initImGui()
 {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   (void)io;
   ImGui::StyleColorsDark();
 
@@ -170,10 +169,28 @@ void GUI::render()
   {
     glm::dvec3 objectPos = m_simulation->getUniverse().getObjectPosition(m_selectedObject.object);
     m_camera.setTarget(glm::vec3(objectPos));
-  }
 
-  // Update window title
-  updateWindowTitle();
+    // Calculate predicted orbit for selected satellite
+    if (m_selectedObject.type == SelectedObject::Type::Satellite)
+    {
+      Satellite* sat = m_selectedObject.asSatellite();
+      if (sat)
+      {
+        Universe& universe = m_simulation->getUniverse();
+        // Predict one full orbit period (or at least 90 minutes for very high orbits)
+        double orbitPeriod = 5400.0; // Default 90 minutes
+        // TODO: Calculate actual orbital period from semi-major axis
+        sat->calculatePredictedOrbit(
+          universe.getEarth()->getPosition(),
+          EARTH_MASS,
+          universe.getSun()->getPosition(),
+          universe.getMoon()->getPosition(),
+          orbitPeriod,
+          500  // Number of prediction points
+        );
+      }
+    }
+  }
 
   // Start ImGui frame
   ImGui_ImplOpenGL3_NewFrame();
@@ -200,7 +217,7 @@ void GUI::render()
 
 void GUI::renderScene()
 {
-  Satellite* selectedSat = m_selectedObject.asSatellite();
+  Satellite *selectedSat = m_selectedObject.asSatellite();
   m_renderer->render(m_simulation->getUniverse(), m_camera, m_windowWidth, m_windowHeight, m_vizState, selectedSat);
 }
 
@@ -220,11 +237,11 @@ void GUI::renderMenuBar()
       // Selected satellite visualization (if any)
       if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Satellite)
       {
-        Satellite* sat = m_selectedObject.asSatellite();
+        Satellite *sat = m_selectedObject.asSatellite();
         if (sat)
         {
           ImGui::SeparatorText("Selected Satellite");
-          auto& satViz = m_vizState.getOrCreate(sat);
+          auto &satViz = m_vizState.getOrCreate(sat);
           ImGui::Checkbox("Orbit Path", &satViz.showOrbitPath);
           ImGui::Checkbox("Footprint", &satViz.showFootprint);
           ImGui::Checkbox("Attitude Vector", &satViz.showAttitudeVector);
@@ -286,6 +303,12 @@ void GUI::renderMenuBar()
         std::cout << "Time warp: 10000x" << std::endl;
       }
 
+      ImGui::Separator();
+      ImGui::SeparatorText("Time Controls");
+      ImGui::Text(". or +: Increase time warp");
+      ImGui::Text(", or -: Decrease time warp");
+      ImGui::Text("SPACE: Toggle pause");
+
       ImGui::EndMenu();
     }
 
@@ -301,7 +324,7 @@ void GUI::renderMenuBar()
       }
 
       // Quick access to celestial bodies
-      Universe& universe = m_simulation->getUniverse();
+      Universe &universe = m_simulation->getUniverse();
 
       if (universe.getSun())
       {
@@ -337,7 +360,7 @@ void GUI::renderMenuBar()
     {
       if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Satellite)
       {
-        Satellite* sat = m_selectedObject.asSatellite();
+        Satellite *sat = m_selectedObject.asSatellite();
         if (sat)
         {
           ImGui::SeparatorText(sat->getName().c_str());
@@ -426,7 +449,7 @@ void GUI::renderMenuBar()
     {
       if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Satellite)
       {
-        Satellite* sat = m_selectedObject.asSatellite();
+        Satellite *sat = m_selectedObject.asSatellite();
         if (sat)
         {
           ImGui::SeparatorText(sat->getName().c_str());
@@ -484,7 +507,7 @@ void GUI::renderMenuBar()
     {
       if (m_selectedObject.type == SelectedObject::Type::Satellite)
       {
-        Satellite* sat = m_selectedObject.asSatellite();
+        Satellite *sat = m_selectedObject.asSatellite();
         if (sat)
         {
           ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "%s", sat->getName().c_str());
@@ -506,13 +529,13 @@ void GUI::renderMenuBar()
 
 void GUI::renderUI()
 {
-  Universe& universe = m_simulation->getUniverse();
+  Universe &universe = m_simulation->getUniverse();
 
   if (m_selectedObject.isValid())
   {
     if (m_selectedObject.type == SelectedObject::Type::Satellite)
     {
-      Satellite* sat = m_selectedObject.asSatellite();
+      Satellite *sat = m_selectedObject.asSatellite();
       if (sat)
       {
         ImGui::Begin("Satellite Operations Dashboard", nullptr, ImGuiWindowFlags_None);
@@ -547,13 +570,14 @@ void GUI::renderUI()
 
           ImGui::Text("Battery:");
           ImGui::NextColumn();
-          ImVec4 battColor = batteryPercent > 50 ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : batteryPercent > 20 ? ImVec4(0.9f, 0.7f, 0.2f, 1.0f) : ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
+          ImVec4 battColor = batteryPercent > 50 ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : batteryPercent > 20 ? ImVec4(0.9f, 0.7f, 0.2f, 1.0f)
+                                                                                                        : ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
           ImGui::TextColored(battColor, "%.0f%%", batteryPercent);
           ImGui::NextColumn();
 
           ImGui::Text("ADCS Mode:");
           ImGui::NextColumn();
-          const char* modeShort[] = {"OFF", "DETUMB", "NADIR", "SUN", "VEL", "INERT", "TGT"};
+          const char *modeShort[] = {"OFF", "DETUMB", "NADIR", "SUN", "VEL", "INERT", "TGT"};
           ImGui::Text("%s", modeShort[(int)sat->getControlMode()]);
           ImGui::NextColumn();
 
@@ -578,7 +602,7 @@ void GUI::renderUI()
           ImGui::PopStyleColor();
           ImGui::Indent();
 
-          const auto& alerts = sat->getAlertSystem().getAlerts();
+          const auto &alerts = sat->getAlertSystem().getAlerts();
 
           if (alerts.empty())
           {
@@ -603,9 +627,9 @@ void GUI::renderUI()
 
             for (int i = alerts.size() - 1; i >= 0; i--)
             {
-              const auto& alert = alerts[i];
+              const auto &alert = alerts[i];
               ImVec4 color;
-              const char* icon;
+              const char *icon;
 
               switch (alert.severity)
               {
@@ -649,7 +673,7 @@ void GUI::renderUI()
         ImGui::Separator();
         ImGui::Text("Visualization:");
 
-        auto& satViz = m_vizState.getOrCreate(sat);
+        auto &satViz = m_vizState.getOrCreate(sat);
         ImGui::Checkbox("Orbit Path", &satViz.showOrbitPath);
         ImGui::SameLine();
         ImGui::Checkbox("Footprint", &satViz.showFootprint);
@@ -673,7 +697,7 @@ void GUI::renderUI()
       ImGui::Begin("Celestial Body", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
       ImGui::SeparatorText("Selected Object");
-      CelestialBody* body = m_selectedObject.asCelestialBody();
+      CelestialBody *body = m_selectedObject.asCelestialBody();
       if (body)
       {
         auto pos = body->getPosition();
@@ -702,10 +726,10 @@ void GUI::renderUI()
     // ========== CELESTIAL BODIES ==========
     if (ImGui::CollapsingHeader("Celestial Bodies", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      auto& bodies = universe.getBodies();
+      auto &bodies = universe.getBodies();
       for (size_t i = 0; i < bodies.size(); ++i)
       {
-        auto& body = bodies[i];
+        auto &body = bodies[i];
         std::string objectName;
 
         if (body == universe.getEarth())
@@ -731,18 +755,18 @@ void GUI::renderUI()
     ImGui::Spacing();
     if (ImGui::CollapsingHeader("Satellites", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      auto& satellites = universe.getSatellites();
+      auto &satellites = universe.getSatellites();
 
       std::map<int, std::vector<std::shared_ptr<Satellite>>> satellitesByPlane;
-      for (const auto& sat : satellites)
+      for (const auto &sat : satellites)
       {
         satellitesByPlane[sat->getPlaneId()].push_back(sat);
       }
 
-      for (auto& planePair : satellitesByPlane)
+      for (auto &planePair : satellitesByPlane)
       {
         int planeId = planePair.first;
-        auto& planeSats = planePair.second;
+        auto &planeSats = planePair.second;
 
         std::string planeLabel;
         if (planeId == -4)
@@ -766,7 +790,7 @@ void GUI::renderUI()
 
         if (ImGui::TreeNode(planeLabel.c_str()))
         {
-          for (const auto& sat : planeSats)
+          for (const auto &sat : planeSats)
           {
             std::string satLabel = sat->getName();
             double altitude = (glm::length(sat->getPosition()) - EARTH_RADIUS) / 1e3;
@@ -793,80 +817,56 @@ void GUI::renderUI()
     ImGui::End();
   }
 }
-
-void GUI::updateWindowTitle()
-{
-  float currentTime = glfwGetTime();
-  float titleUpdateInterval = 0.5f;
-
-  if (currentTime - m_lastTitleUpdateTime >= titleUpdateInterval)
-  {
-    std::string title = "Constellation Simulation";
-
-    if (m_simulation->isPaused())
-    {
-      title += " [PAUSED]";
-    }
-    else
-    {
-      title += " [" + std::to_string((int)m_simulation->getTimeWarp()) + "x]";
-    }
-
-    glfwSetWindowTitle(m_window, title.c_str());
-    m_lastTitleUpdateTime = currentTime;
-  }
-}
-
 // ========== STATIC CALLBACK FUNCTIONS ==========
 
-void GUI::scrollCallbackStatic(GLFWwindow* window, double xoffset, double yoffset)
+void GUI::scrollCallbackStatic(GLFWwindow *window, double xoffset, double yoffset)
 {
-  GUI* gui = static_cast<GUI*>(glfwGetWindowUserPointer(window));
+  GUI *gui = static_cast<GUI *>(glfwGetWindowUserPointer(window));
   if (gui)
   {
     gui->scrollCallback(xoffset, yoffset);
   }
 }
 
-void GUI::mouseButtonCallbackStatic(GLFWwindow* window, int button, int action, int mods)
+void GUI::mouseButtonCallbackStatic(GLFWwindow *window, int button, int action, int mods)
 {
-  GUI* gui = static_cast<GUI*>(glfwGetWindowUserPointer(window));
+  GUI *gui = static_cast<GUI *>(glfwGetWindowUserPointer(window));
   if (gui)
   {
     gui->mouseButtonCallback(button, action, mods);
   }
 }
 
-void GUI::cursorPosCallbackStatic(GLFWwindow* window, double xpos, double ypos)
+void GUI::cursorPosCallbackStatic(GLFWwindow *window, double xpos, double ypos)
 {
-  GUI* gui = static_cast<GUI*>(glfwGetWindowUserPointer(window));
+  GUI *gui = static_cast<GUI *>(glfwGetWindowUserPointer(window));
   if (gui)
   {
     gui->cursorPosCallback(xpos, ypos);
   }
 }
 
-void GUI::framebufferSizeCallbackStatic(GLFWwindow* window, int width, int height)
+void GUI::framebufferSizeCallbackStatic(GLFWwindow *window, int width, int height)
 {
-  GUI* gui = static_cast<GUI*>(glfwGetWindowUserPointer(window));
+  GUI *gui = static_cast<GUI *>(glfwGetWindowUserPointer(window));
   if (gui)
   {
     gui->framebufferSizeCallback(width, height);
   }
 }
 
-void GUI::keyCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods)
+void GUI::keyCallbackStatic(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
-  GUI* gui = static_cast<GUI*>(glfwGetWindowUserPointer(window));
+  GUI *gui = static_cast<GUI *>(glfwGetWindowUserPointer(window));
   if (gui)
   {
     gui->keyCallback(key, scancode, action, mods);
   }
 }
 
-void GUI::charCallbackStatic(GLFWwindow* window, unsigned int c)
+void GUI::charCallbackStatic(GLFWwindow *window, unsigned int c)
 {
-  GUI* gui = static_cast<GUI*>(glfwGetWindowUserPointer(window));
+  GUI *gui = static_cast<GUI *>(glfwGetWindowUserPointer(window));
   if (gui)
   {
     gui->charCallback(c);
@@ -881,7 +881,7 @@ void GUI::scrollCallback(double xoffset, double yoffset)
   ImGui_ImplGlfw_ScrollCallback(m_window, xoffset, yoffset);
 
   // Then handle our own logic if ImGui doesn't want it
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   if (io.WantCaptureMouse)
   {
     return;
@@ -897,7 +897,7 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
   ImGui_ImplGlfw_MouseButtonCallback(m_window, button, action, mods);
 
   // Then handle our own logic if ImGui doesn't want it
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   if (io.WantCaptureMouse)
   {
     return;
@@ -924,17 +924,17 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
         glm::vec3 rayOrigin, rayDirection;
         m_camera.screenToWorldRay(currentX, currentY, m_windowWidth, m_windowHeight, rayOrigin, rayDirection);
 
-        void* closestObject = nullptr;
+        void *closestObject = nullptr;
         SelectedObject::Type closestType = SelectedObject::Type::None;
         float closestDistance = std::numeric_limits<float>::max();
 
         float cameraDistance = m_camera.getDistance();
         float pickRadiusScale = 1.0f + (cameraDistance / 1e7f) * 0.5f;
 
-        Universe& universe = m_simulation->getUniverse();
+        Universe &universe = m_simulation->getUniverse();
 
         // Check celestial bodies
-        for (const auto& body : universe.getBodies())
+        for (const auto &body : universe.getBodies())
         {
           float actualRadius = body->getRadius();
           float pickRadius = std::max(actualRadius, actualRadius * pickRadiusScale);
@@ -952,7 +952,7 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
         }
 
         // Check satellites
-        for (const auto& sat : universe.getSatellites())
+        for (const auto &sat : universe.getSatellites())
         {
           float pickRadius = 1000e3f * pickRadiusScale;
           float distance;
@@ -977,7 +977,7 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
 
           if (closestType == SelectedObject::Type::Satellite)
           {
-            Satellite* sat = static_cast<Satellite*>(closestObject);
+            Satellite *sat = static_cast<Satellite *>(closestObject);
             std::cout << "Selected satellite: " << sat->getName() << std::endl;
           }
           else if (closestType == SelectedObject::Type::CelestialBody)
@@ -998,7 +998,7 @@ void GUI::cursorPosCallback(double xpos, double ypos)
   ImGui_ImplGlfw_CursorPosCallback(m_window, xpos, ypos);
 
   // Then handle our own logic if ImGui doesn't want it
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   if (io.WantCaptureMouse)
   {
     return;
@@ -1040,7 +1040,7 @@ void GUI::keyCallback(int key, int scancode, int action, int mods)
   ImGui_ImplGlfw_KeyCallback(m_window, key, scancode, action, mods);
 
   // Then handle our own logic if ImGui doesn't want it
-  ImGuiIO& io = ImGui::GetIO();
+  ImGuiIO &io = ImGui::GetIO();
   if (io.WantCaptureKeyboard)
   {
     return;

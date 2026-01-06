@@ -27,24 +27,6 @@ Simulation::~Simulation()
 void Simulation::run()
 {
   std::cout << "\n=== SIMULATION STARTED ===" << std::endl;
-  if (m_headless)
-  {
-    std::cout << "Running in headless mode (no GUI)" << std::endl;
-  }
-  else
-  {
-    std::cout << "Running with GUI" << std::endl;
-    std::cout << "\n=== CONTROLS ===" << std::endl;
-    std::cout << "Mouse Click: Select satellite and track with camera" << std::endl;
-    std::cout << "Mouse Drag: Pan camera" << std::endl;
-    std::cout << "Mouse Scroll: Zoom in/out" << std::endl;
-    std::cout << "SPACE: Pause/Unpause simulation" << std::endl;
-    std::cout << ". or +: Increase time warp (1x -> 10x -> 100x -> 1000x -> 10000x)" << std::endl;
-    std::cout << ", or -: Decrease time warp" << std::endl;
-    std::cout << "================" << std::endl;
-  }
-
-  std::cout << "Simulation::run() - About to start main loop" << std::endl;
 
   float lastTime = m_headless ? 0.0f : glfwGetTime();
 

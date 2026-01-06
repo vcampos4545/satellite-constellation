@@ -13,7 +13,7 @@ GroundStation::GroundStation(const std::string &name, double latitude, double lo
   position = latLonToCartesian(latitude, longitude);
 }
 
-void GroundStation::updatePosition(double earthRotation, const glm::vec3 &rotationAxis)
+void GroundStation::update(double earthRotation, const glm::vec3 &rotationAxis)
 {
   // Recalculate position from lat/lon (unrotated)
   glm::dvec3 basePosition = latLonToCartesian(latitude, longitude);

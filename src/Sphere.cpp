@@ -24,13 +24,14 @@ void Sphere::generateMesh(float radius, unsigned int rings, unsigned int sectors
   const float S = 1.0f / static_cast<float>(sectors - 1);
 
   // Generate vertices
+  // Z-up coordinate system: Z is vertical, X is vernal equinox (0° longitude)
   for (unsigned int r = 0; r < rings; ++r)
   {
     for (unsigned int s = 0; s < sectors; ++s)
     {
-      float y = sin(-PI / 2.0f + PI * r * R);
-      float x = cos(2 * PI * s * S) * sin(PI * r * R);
-      float z = sin(2 * PI * s * S) * sin(PI * r * R);
+      float z = sin(-PI / 2.0f + PI * r * R);
+      float x = -cos(2 * PI * s * S) * sin(PI * r * R); // Negate X to fix winding order
+      float y = sin(2 * PI * s * S) * sin(PI * r * R);
 
       // Position
       vertices.push_back(x * radius);

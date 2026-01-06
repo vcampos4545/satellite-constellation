@@ -47,7 +47,6 @@ public:
                         const class VisualizationState &vizState,
                         const Satellite *selectedSatellite = nullptr);
   void renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations);
-  void renderPowerBeams(const std::vector<std::shared_ptr<GroundStation>> &groundStations, const Satellite *selectedSatellite);
   void renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight);
 
   // Getters for checking initialization status
@@ -75,11 +74,13 @@ private:
   // Textures
   Texture earthTexture;
   Texture moonTexture;
+  Texture sunTexture;
   Texture starsTexture;
 
   // Texture loaded flags
   bool earthTextureLoaded;
   bool moonTextureLoaded;
+  bool sunTextureLoaded;
   bool starsTextureLoaded;
 
   // Mesh loaded flags
@@ -89,6 +90,18 @@ private:
 
   // Initialization state
   bool initialized;
+
+  // ========== SATELLITE RENDER HELPER FUNCTIONS ==========
+  // Individual satellite rendering functions for better code organization
+  void renderSatelliteOrbitPath(const std::shared_ptr<Satellite> &satellite,
+                                const class VisualizationState &vizState);
+  void renderSatellitePredictedOrbit(const std::shared_ptr<Satellite> &satellite,
+                                     const Satellite *selectedSatellite);
+  void renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite);
+  void renderSatelliteFootprint(const std::shared_ptr<Satellite> &satellite,
+                                const class VisualizationState &vizState);
+  void renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite,
+                                     const class VisualizationState &vizState);
 };
 
 #endif // RENDERER_H

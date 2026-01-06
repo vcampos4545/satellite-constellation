@@ -6,9 +6,6 @@
 // Convert latitude/longitude (in degrees) to Cartesian coordinates on Earth's surface
 glm::dvec3 latLonToCartesian(double latitudeDeg, double longitudeDeg);
 
-// Generate a random position on Earth's surface
-glm::dvec3 generateRandomEarthSurfacePosition();
-
 // Ray-sphere intersection test for object picking
 // Returns true if ray intersects sphere, and sets distance to intersection point
 bool raySphereIntersect(const glm::vec3 &rayOrigin, const glm::vec3 &rayDirection,

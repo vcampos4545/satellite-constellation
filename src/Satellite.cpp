@@ -228,6 +228,23 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
   velocity += (deltaTime / 6.0) * (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel);
   position += (deltaTime / 6.0) * (k1_pos + 2.0 * k2_pos + 2.0 * k3_pos + k4_pos);
 
+  // ========== ORBIT PATH HISTORY ==========
+  // Increment update iteration counter
+  updateIterationCount++;
+
+  // Add current position to historical trail every N iterations
+  // This gives smooth trails regardless of time warp speed
+  // Saves complete history since simulation start
+  if (updateIterationCount % orbitPathSaveInterval == 0)
+  {
+    orbitPath.push_back(position);
+  }
+
+  runFlightSoftware(deltaTime, earthCenter, sunPosition);
+}
+
+void Satellite::runFlightSoftware(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition)
+{
   // ========== STATION KEEPING ==========
   // Check if we need to perform orbit maintenance burns
   if (stationKeepingEnabled && hasThrusters && hasPropellant())
@@ -251,21 +268,6 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
     alertSystem.clearAlerts(); // Clear previous alerts
     checkTelemetryLimits();
     timeSinceLastAlertCheck = 0.0;
-  }
-
-  // Update footprint every frame
-  calculateFootprint(earthCenter, 60);
-
-  // ========== ORBIT PATH HISTORY ==========
-  // Increment update iteration counter
-  updateIterationCount++;
-
-  // Add current position to historical trail every N iterations
-  // This gives smooth trails regardless of time warp speed
-  // Saves complete history since simulation start
-  if (updateIterationCount % orbitPathSaveInterval == 0)
-  {
-    orbitPath.push_back(position);
   }
 }
 
@@ -1280,6 +1282,74 @@ double Satellite::calculatePowerGeneration(double solarFlux, const glm::dvec3 &s
   double power = solarFlux * solarPanelArea * solarPanelEfficiency * cosAngle * solarPanelDegradation;
 
   return power;
+}
+
+// ========== ORBIT PREDICTION ==========
+
+void Satellite::calculatePredictedOrbit(const glm::dvec3 &earthCenter, double earthMass,
+                                         const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition,
+                                         double predictionDuration, int numPoints)
+{
+  /**
+   * Calculate future orbit path using RK4 integration
+   *
+   * This predicts where the satellite will be in the future based on current state,
+   * useful for trajectory planning and visualization.
+   *
+   * Parameters:
+   *   predictionDuration: How far into the future to predict (seconds)
+   *   numPoints: Number of points to calculate along the predicted path
+   */
+
+  predictedOrbitPath.clear();
+  predictedOrbitPath.reserve(numPoints);
+
+  // Start from current state
+  glm::dvec3 pred_pos = position;
+  glm::dvec3 pred_vel = velocity;
+
+  // Time step for prediction
+  double dt = predictionDuration / (double)numPoints;
+
+  // Add current position as first point
+  predictedOrbitPath.push_back(pred_pos);
+
+  // Propagate forward using RK4
+  for (int i = 1; i < numPoints; ++i)
+  {
+    // RK4 integration (same as in update() but for prediction)
+    // k1 = f(t, y)
+    glm::dvec3 k1_vel = calculateAcceleration(pred_pos, pred_vel, earthCenter, earthMass, sunPosition, moonPosition);
+    glm::dvec3 k1_pos = pred_vel;
+
+    // k2 = f(t + dt/2, y + k1*dt/2)
+    glm::dvec3 k2_vel = calculateAcceleration(
+        pred_pos + k1_pos * (dt * 0.5),
+        pred_vel + k1_vel * (dt * 0.5),
+        earthCenter, earthMass, sunPosition, moonPosition);
+    glm::dvec3 k2_pos = pred_vel + k1_vel * (dt * 0.5);
+
+    // k3 = f(t + dt/2, y + k2*dt/2)
+    glm::dvec3 k3_vel = calculateAcceleration(
+        pred_pos + k2_pos * (dt * 0.5),
+        pred_vel + k2_vel * (dt * 0.5),
+        earthCenter, earthMass, sunPosition, moonPosition);
+    glm::dvec3 k3_pos = pred_vel + k2_vel * (dt * 0.5);
+
+    // k4 = f(t + dt, y + k3*dt)
+    glm::dvec3 k4_vel = calculateAcceleration(
+        pred_pos + k3_pos * dt,
+        pred_vel + k3_vel * dt,
+        earthCenter, earthMass, sunPosition, moonPosition);
+    glm::dvec3 k4_pos = pred_vel + k3_vel * dt;
+
+    // Update: y_new = y + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+    pred_vel += (dt / 6.0) * (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel);
+    pred_pos += (dt / 6.0) * (k1_pos + 2.0 * k2_pos + 2.0 * k3_pos + k4_pos);
+
+    // Save this predicted position
+    predictedOrbitPath.push_back(pred_pos);
+  }
 }
 
 // ========== ALERT SYSTEM IMPLEMENTATION ==========

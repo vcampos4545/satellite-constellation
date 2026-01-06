@@ -12,16 +12,16 @@ Camera::Camera(float fov, float aspectRatio, float nearPlane, float farPlane)
 void Camera::updatePosition()
 {
   // Convert spherical coordinates to Cartesian
-  float x = distance * cos(phi) * cos(theta);
-  float y = distance * sin(phi);
-  float z = distance * cos(phi) * sin(theta);
+  float x = distance * cos(phi) * sin(theta);
+  float y = distance * cos(phi) * cos(theta);
+  float z = distance * sin(phi);
 
   position = target + glm::vec3(x, y, z);
 }
 
 glm::mat4 Camera::getViewMatrix() const
 {
-  return glm::lookAt(position, target, glm::vec3(0.0f, 1.0f, 0.0f));
+  return glm::lookAt(position, target, glm::vec3(0.0f, 0.0f, 1.0f));
 }
 
 void Camera::setAngles(float theta, float phi)
@@ -40,7 +40,7 @@ void Camera::adjustDistance(float delta)
   distance += delta;
 
   // Clamp distance to reasonable values
-  distance = glm::clamp(distance, 1e5f, 1e9f); // 10,000 km to 1,000,000 km
+  distance = glm::clamp(distance, 1e5f, 1e10f); // 10,000 km to 1,000,000 km
 
   updatePosition();
 }
