@@ -20,6 +20,7 @@ public:
     const glm::vec3 temp = target;
     this->target = target;
 
+    // Update position if new target
     if (&this->target != &temp)
     {
       updatePosition();
@@ -36,10 +37,7 @@ public:
 
   // Getters
   glm::vec3 getPosition() const { return position; }
-  glm::vec3 getTarget() const { return target; }
   float getDistance() const { return distance; }
-  float getFOV() const { return fov; }
-  float getAspectRatio() const { return aspectRatio; }
 
   // Ray casting for picking
   void screenToWorldRay(double mouseX, double mouseY, int screenWidth, int screenHeight,

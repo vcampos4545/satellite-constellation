@@ -22,8 +22,9 @@ public:
   std::shared_ptr<CelestialBody> getSun() const { return sun; }
   std::shared_ptr<CelestialBody> getMoon() const { return moon; }
 
-  // Initialize with Earth and Sun
-  void initializeEarthSunAndMoon();
+  void initializeEarth();
+  void initializeSun();
+  void initializeMoon();
 
   void addGPSConstellation();
   void addGEOConstellation(int numSatellites = 10);

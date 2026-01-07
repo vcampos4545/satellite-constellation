@@ -1,4 +1,5 @@
 #include "Satellite.h"
+#include "FlightSoftwareTask.h"
 #include "Constants.h"
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -240,7 +241,32 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
     orbitPath.push_back(position);
   }
 
-  runFlightSoftware(deltaTime, earthCenter, sunPosition);
+  // ========== FLIGHT SOFTWARE EXECUTION ==========
+  // Execute injected FSW if available, otherwise fall back to old hardcoded FSW
+  executeFlightSoftware(deltaTime);
+}
+
+void Satellite::executeFlightSoftware(double deltaTime)
+{
+  /**
+   * Execute flight software task
+   *
+   * If custom FSW has been injected via setFlightSoftware(), execute it.
+   * Otherwise, fall back to the old hardcoded runFlightSoftware() for backward compatibility.
+   */
+
+  if (flightSoftware)
+  {
+    // Execute injected custom FSW
+    flightSoftware->execute(this, deltaTime);
+  }
+  else
+  {
+    // Fall back to old hardcoded FSW (for backward compatibility)
+    glm::dvec3 earthCenter(0.0);
+    glm::dvec3 sunPosition(1.496e11, 0.0, 0.0); // Simplified sun position
+    runFlightSoftware(deltaTime, earthCenter, sunPosition);
+  }
 }
 
 void Satellite::runFlightSoftware(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition)
@@ -1287,8 +1313,8 @@ double Satellite::calculatePowerGeneration(double solarFlux, const glm::dvec3 &s
 // ========== ORBIT PREDICTION ==========
 
 void Satellite::calculatePredictedOrbit(const glm::dvec3 &earthCenter, double earthMass,
-                                         const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition,
-                                         double predictionDuration, int numPoints)
+                                        const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition,
+                                        int numPoints)
 {
   /**
    * Calculate future orbit path using RK4 integration
@@ -1300,6 +1326,11 @@ void Satellite::calculatePredictedOrbit(const glm::dvec3 &earthCenter, double ea
    *   predictionDuration: How far into the future to predict (seconds)
    *   numPoints: Number of points to calculate along the predicted path
    */
+
+  // Estimate period using Kepler's third law: T = 2π√(a³/μ) where μ = G*M
+  double a = glm::length(position - earthCenter);
+  double mu = G * earthMass;
+  double predictionDuration = 2.0 * PI * sqrt((a * a * a) / mu);
 
   predictedOrbitPath.clear();
   predictedOrbitPath.reserve(numPoints);

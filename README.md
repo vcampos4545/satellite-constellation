@@ -56,6 +56,17 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
 
+## Coordinate System
+
+### Earth-centered inertial (ECI)
+
+https://en.wikipedia.org/wiki/Earth-centered_inertial
+
+- Z: Up (North Pole)
+- X: vernal equinox (0 degress longitude)
+- Y: Complete right hand rule
+- Note: XY Plane along equatorial plane, Earth not fixed (rotating)
+
 ## Controls
 
 ### Camera

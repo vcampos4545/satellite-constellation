@@ -60,6 +60,10 @@ add_executable(simulation
     src/Orbit.cpp
     src/OBJMesh.cpp
 
+    # Flight Software
+    src/StandardFSW.cpp
+    src/PassiveFSW.cpp
+
     # ImGui core
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp

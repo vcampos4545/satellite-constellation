@@ -7,6 +7,8 @@
 CelestialBody::CelestialBody(const glm::dvec3 &position, double mass, double radius, const glm::vec3 &color, const glm::vec3 &rotationAxis, const double rotationAngularVelocity)
     : position(position), velocity(0.0, 0.0, 0.0), mass(mass), radius(radius), color(color), rotation(0.0f), rotationAxis(glm::normalize(rotationAxis)), rotationAngularVelocity(rotationAngularVelocity), enablePhysics(false)
 {
+  // Add initial position to orbit path
+  orbitPath.push_back(position);
 }
 
 void CelestialBody::update(double deltaTime, const std::vector<std::shared_ptr<CelestialBody>> &allBodies)
@@ -64,4 +66,16 @@ void CelestialBody::update(double deltaTime, const std::vector<std::shared_ptr<C
   // Update: y_new = y + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
   velocity += (deltaTime / 6.0) * (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel);
   position += (deltaTime / 6.0) * (k1_pos + 2.0 * k2_pos + 2.0 * k3_pos + k4_pos);
+
+  // ========== ORBIT PATH HISTORY ==========
+  // Increment update iteration counter
+  updateIterationCount++;
+
+  // Add current position to historical trail every N iterations
+  // This gives smooth trails regardless of time warp speed
+  // Saves complete history since simulation start
+  if (updateIterationCount % orbitPathSaveInterval == 0)
+  {
+    orbitPath.push_back(position);
+  }
 }

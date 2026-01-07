@@ -5,8 +5,12 @@
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
 #include <string>
+#include <memory>
 #include "Orbit.h"
 #include "AlertSystem.h"
+
+// Forward declaration
+class FlightSoftwareTask;
 
 // Attitude control modes
 enum class AttitudeControlMode
@@ -36,10 +40,22 @@ public:
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
 
-  // Custom satellite flight software
+  // ========== FLIGHT SOFTWARE INTERFACE ==========
+  // Set custom flight software for this satellite
+  void setFlightSoftware(std::shared_ptr<FlightSoftwareTask> fsw) { flightSoftware = fsw; }
+
+  // Get current flight software
+  std::shared_ptr<FlightSoftwareTask> getFlightSoftware() const { return flightSoftware; }
+
+  // Execute flight software (called internally by update())
+  void executeFlightSoftware(double deltaTime);
+
+  // DEPRECATED: Old hardcoded flight software (kept for backward compatibility)
+  // Use setFlightSoftware() instead to inject custom FSW
   void runFlightSoftware(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
 
   // ADCS Control Loop (mirrors flight software architecture)
+  // PUBLIC: FSW implementations can call this to perform attitude control
   void adcsControlLoop(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
 
   // Update target point for tracking mode (e.g., ground station position)
@@ -61,8 +77,7 @@ public:
 
   // Orbit prediction
   void calculatePredictedOrbit(const glm::dvec3 &earthCenter, double earthMass,
-                               const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition,
-                               double predictionDuration, int numPoints = 500);
+                               const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition, int numPoints = 500);
   bool shouldDrawOrbit() const
   {
     // For Molniya satellites (planeId -2), draw all orbits since each is in a different plane
@@ -152,6 +167,15 @@ public:
   bool isInEclipse() const { return inEclipse; }
   bool hasSufficientPower() const { return batteryCharge > (batteryCapacity * 0.1); } // >10% battery
 
+  // ========== FSW ACCESSIBLE METHODS ==========
+  // Power management (FSW can call these)
+  void updatePowerSystem(double deltaTime, const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter);
+
+  // Station keeping (FSW can call these)
+  void performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter);
+  bool getStationKeepingEnabled() const { return stationKeepingEnabled; }
+  double getTargetSemiMajorAxis() const { return targetSemiMajorAxis; }
+
   // PID control gains
   void setProportionalGain(double kp) { proportionalGain = kp; }
   void setIntegralGain(double ki) { integralGain = ki; }
@@ -215,11 +239,11 @@ private:
   glm::dvec3 calculateAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPos, const glm::dvec3 &moonPos) const;
 
   // ========== PROPULSION METHODS ==========
-  void performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter);
+  // performStationKeeping is now public (declared above in FSW ACCESSIBLE METHODS)
   glm::dvec3 calculateThrustAcceleration(const glm::dvec3 &thrustDirection, double thrustMagnitude);
 
   // ========== POWER MANAGEMENT METHODS ==========
-  void updatePowerSystem(double deltaTime, const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter);
+  // updatePowerSystem is now public (declared above in FSW ACCESSIBLE METHODS)
   double calculateSolarFlux(const glm::dvec3 &sunPosition) const;
   bool checkEclipse(const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter) const;
   double calculatePowerConsumption() const;
@@ -360,6 +384,10 @@ private:
   // Alert system
   AlertSystem alertSystem;
   double timeSinceLastAlertCheck = 0.0; // Track time between alert checks
+
+  // ========== FLIGHT SOFTWARE ==========
+  // Injected flight software task (executes autonomous behavior)
+  std::shared_ptr<FlightSoftwareTask> flightSoftware;
 };
 
 #endif // SATELLITE_H

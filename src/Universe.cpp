@@ -3,17 +3,22 @@
 #include "Orbit.h"
 #include "MathUtils.h"
 #include "GroundStation.h"
+#include "StandardFSW.h"
+#include "PassiveFSW.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
 #include <limits>
 #include <string>
+#include <memory>
 #include <glm/gtc/matrix_transform.hpp>
 
 Universe::Universe()
 {
   /* DO NOT CHANGE */
-  initializeEarthSunAndMoon();
+  initializeEarth();
+  initializeSun();
+  initializeMoon();
 
   /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 
@@ -45,6 +50,108 @@ Universe::Universe()
   /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 }
 
+void Universe::initializeEarth()
+{
+  // ========== EARTH ==========
+  // Create Earth at origin
+  // Equatorial plane is horizontal (XY plane), rotation axis is Z-axis
+  // North pole points up (+Z), equator is in XY plane
+  glm::vec3 earthRotationAxis(0.0f, 0.0f, 1.0f);
+
+  earth = std::make_shared<CelestialBody>(
+      glm::dvec3(0.0, 0.0, 0.0), // Position at origin
+      EARTH_MASS,
+      EARTH_RADIUS,
+      glm::vec3(0.2f, 0.4f, 0.8f), // Bluish color
+      earthRotationAxis,
+      EARTH_ROTATION_ANGULAR_VELOCITY);
+  bodies.push_back(earth);
+}
+
+void Universe::initializeSun()
+{
+  // ========== SUN ==========
+  // Position sun for northern hemisphere summer (June 21st)
+  // At summer solstice, sun is 23.44° above the ecliptic (which is tilted from equator)
+  // Since equatorial plane is XY (horizontal), ecliptic is tilted by obliquity
+  // Sun should be above the equatorial plane by +23.44° for northern summer
+  double sunElevationAngle = glm::radians(ECLIPTIC_OBLIQUITY);
+
+  // Place sun at 1 AU distance, elevated above equatorial plane for northern summer
+  // Sun in +X direction (local noon for observer at 0° longitude), elevated in +Z
+  glm::dvec3 sunPosition(
+      AU * cos(sunElevationAngle), // X component
+      0.0,                         // Y component
+      AU * sin(sunElevationAngle)  // Z component
+  );
+
+  sun = std::make_shared<CelestialBody>(
+      sunPosition,
+      SUN_MASS,
+      SUN_RADIUS,
+      glm::vec3(1.0f, 0.9f, 0.6f), // Yellowish color
+      glm::vec3(0.0f, 0.0f, 0.0f), // No rotation axis for simplicity
+      0.0);                        // No rotation for simplicity
+  bodies.push_back(sun);
+}
+
+void Universe::initializeMoon()
+{
+  // ========== MOON ==========
+  // Create Moon with accurate orbital parameters
+  // Moon's orbit is inclined 5.145° to the ecliptic
+  // Ecliptic itself is tilted 23.44° from Earth's equator
+  // Total inclination from equator = 5.145° (to ecliptic) + obliquity effects
+
+  // Start moon at periapsis (closest approach)
+  double periapsis = MOON_SEMI_MAJOR_AXIS * (1.0 - MOON_ECCENTRICITY);
+
+  // Moon's orbital plane is inclined to ecliptic by 5.145°
+  // For Z-up: Ecliptic is tilted from XY (equatorial) plane by 23.44°
+  // We'll place moon in the ecliptic plane with additional 5.145° inclination
+  double eclipticTilt = glm::radians(ECLIPTIC_OBLIQUITY);
+  double moonInclination = glm::radians(MOON_INCLINATION_TO_ECLIPTIC);
+  double totalInclination = eclipticTilt + moonInclination;
+
+  // Initial position: periapsis in the orbital plane
+  // Place moon at X direction with inclination applied
+  glm::dvec3 moonPosition(
+      periapsis * cos(totalInclination), // X component
+      0.0,                               // Y component
+      periapsis * sin(totalInclination)  // Z component
+  );
+
+  // Calculate orbital velocity at periapsis using vis-viva equation
+  // v = sqrt(μ * (2/r - 1/a))
+  double mu = G * EARTH_MASS;
+  double moonVelocity = sqrt(mu * (2.0 / periapsis - 1.0 / MOON_SEMI_MAJOR_AXIS));
+
+  // Velocity perpendicular to position, in the orbital plane (mainly Y direction)
+  glm::dvec3 moonVel(
+      0.0,
+      moonVelocity,
+      0.0);
+
+  // Moon's rotation axis is tilted 6.68° from its orbital plane normal
+  double moonAxisTilt = glm::radians(totalInclination - MOON_AXIAL_TILT);
+  glm::vec3 moonRotationAxis(
+      sin(moonAxisTilt), // Small X component due to tilt
+      0.0f,              // Y
+      cos(moonAxisTilt)  // Mostly vertical (Z)
+  );
+
+  moon = std::make_shared<CelestialBody>(
+      moonPosition,
+      MOON_MASS,
+      MOON_RADIUS,
+      glm::vec3(0.7f, 0.7f, 0.7f), // Gray color
+      moonRotationAxis,
+      MOON_ROTATION_ANGULAR_VELOCITY);
+  moon->setVelocity(moonVel);
+  moon->enablePhysicsUpdate(true); // Enable physics simulation for the moon
+  bodies.push_back(moon);
+}
+
 std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
     const Orbit &orbit,
     const glm::vec3 &color,
@@ -64,109 +171,18 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
   satellite->setControlMode(AttitudeControlMode::TARGET_TRACKING);
   satellite->setControlAlgorithm(ControlAlgorithm::PID);
 
+  // Assign flight software based on satellite type
+  // Cubesats get PassiveFSW, all others get StandardFSW
+  if (name.find("Cubesat") != std::string::npos)
+  {
+    satellite->setFlightSoftware(std::make_shared<PassiveFSW>());
+  }
+  else
+  {
+    satellite->setFlightSoftware(std::make_shared<StandardFSW>());
+  }
+
   return satellite;
-}
-
-void Universe::initializeEarthSunAndMoon()
-{
-  // ========== EARTH ==========
-  // Create Earth at origin
-  // Equatorial plane is horizontal (XY plane), rotation axis is Z-axis
-  // North pole points up (+Z), equator is in XY plane
-  glm::vec3 earthRotationAxis(0.0f, 0.0f, 1.0f);
-
-  earth = std::make_shared<CelestialBody>(
-      glm::dvec3(0.0, 0.0, 0.0), // Position at origin
-      EARTH_MASS,
-      EARTH_RADIUS,
-      glm::vec3(0.2f, 0.4f, 0.8f), // Bluish color
-      earthRotationAxis,
-      EARTH_ROTATION_ANGULAR_VELOCITY);
-  bodies.push_back(earth);
-
-  // ========== SUN ==========
-  // Position sun for northern hemisphere summer (June 21st)
-  // At summer solstice, sun is 23.44° above the ecliptic (which is tilted from equator)
-  // Since equatorial plane is XY (horizontal), ecliptic is tilted by obliquity
-  // Sun should be above the equatorial plane by +23.44° for northern summer
-  double sunElevationAngle = ECLIPTIC_OBLIQUITY * PI / 180.0; // radians
-
-  // Place sun at 1 AU distance, elevated above equatorial plane for northern summer
-  // Sun in +X direction (local noon for observer at 0° longitude), elevated in +Z
-  glm::dvec3 sunPosition(
-      AU * cos(sunElevationAngle), // X component (reduced due to elevation)
-      0.0,                         // Y component
-      AU * sin(sunElevationAngle)  // Z component
-  );
-
-  glm::vec3 sunRotationAxis(0.0f, 0.0f, 1.0f);      // Sun also rotates around Z-axis
-  double sunRotationPeriod = 25.38 * 24.0 * 3600.0; // 25.38 days at equator
-  double sunRotationAngularVelocity = 2.0 * PI / sunRotationPeriod;
-
-  sun = std::make_shared<CelestialBody>(
-      sunPosition,
-      SUN_MASS,
-      SUN_RADIUS,
-      glm::vec3(1.0f, 0.9f, 0.6f), // Yellowish color
-      sunRotationAxis,
-      sunRotationAngularVelocity);
-  bodies.push_back(sun);
-
-  // ========== MOON ==========
-  // Create Moon with accurate orbital parameters
-  // Moon's orbit is inclined 5.145° to the ecliptic
-  // Ecliptic itself is tilted 23.44° from Earth's equator
-  // Total inclination from equator = 5.145° (to ecliptic) + obliquity effects
-
-  // Start moon at periapsis (closest approach)
-  double periapsis = MOON_SEMI_MAJOR_AXIS * (1.0 - MOON_ECCENTRICITY);
-
-  // Moon's orbital plane is inclined to ecliptic by 5.145°
-  // For Z-up: Ecliptic is tilted from XY (equatorial) plane by 23.44°
-  // We'll place moon in the ecliptic plane with additional 5.145° inclination
-  double eclipticTilt = ECLIPTIC_OBLIQUITY * PI / 180.0;
-  double moonInclination = MOON_INCLINATION_TO_ECLIPTIC * PI / 180.0;
-  double totalInclination = eclipticTilt + moonInclination;
-
-  // Initial position: periapsis in the orbital plane
-  // Place moon at X direction with inclination applied
-  glm::dvec3 moonPosition(
-      periapsis * cos(totalInclination), // X component (reduced by inclination)
-      0.0,                                // Y component (in XY plane initially)
-      periapsis * sin(totalInclination)  // Z component (vertical offset from equator)
-  );
-
-  // Calculate orbital velocity at periapsis using vis-viva equation
-  // v = sqrt(μ * (2/r - 1/a))
-  double mu = G * EARTH_MASS;
-  double moonVelocity = sqrt(mu * (2.0 / periapsis - 1.0 / MOON_SEMI_MAJOR_AXIS));
-
-  // Velocity perpendicular to position, in the orbital plane (mainly Y direction)
-  glm::dvec3 moonVel(
-      -moonVelocity * sin(totalInclination), // X component (small, due to inclination)
-      moonVelocity * cos(totalInclination),  // Y component (main direction)
-      0.0                                     // Z component
-  );
-
-  // Moon's rotation axis is tilted 6.68° from its orbital plane normal
-  // For Z-up, approximate rotation axis close to Z with small tilt
-  double moonAxisTilt = MOON_AXIAL_TILT * PI / 180.0;
-  glm::vec3 moonRotationAxis(
-      sin(moonAxisTilt), // Small X component due to tilt
-      0.0f,              // Y
-      cos(moonAxisTilt)  // Mostly vertical (Z)
-  );
-
-  moon = std::make_shared<CelestialBody>(
-      moonPosition,
-      MOON_MASS,
-      MOON_RADIUS,
-      glm::vec3(0.7f, 0.7f, 0.7f), // Gray color
-      moonRotationAxis,
-      MOON_ROTATION_ANGULAR_VELOCITY);
-  moon->setVelocity(moonVel);
-  moon->enablePhysicsUpdate(true); // Enable physics simulation for the moon
-  bodies.push_back(moon);
 }
 
 void Universe::addGPSConstellation()

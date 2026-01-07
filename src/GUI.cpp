@@ -173,20 +173,16 @@ void GUI::render()
     // Calculate predicted orbit for selected satellite
     if (m_selectedObject.type == SelectedObject::Type::Satellite)
     {
-      Satellite* sat = m_selectedObject.asSatellite();
+      Satellite *sat = m_selectedObject.asSatellite();
       if (sat)
       {
-        Universe& universe = m_simulation->getUniverse();
-        // Predict one full orbit period (or at least 90 minutes for very high orbits)
-        double orbitPeriod = 5400.0; // Default 90 minutes
-        // TODO: Calculate actual orbital period from semi-major axis
+        Universe &universe = m_simulation->getUniverse();
         sat->calculatePredictedOrbit(
-          universe.getEarth()->getPosition(),
-          EARTH_MASS,
-          universe.getSun()->getPosition(),
-          universe.getMoon()->getPosition(),
-          orbitPeriod,
-          500  // Number of prediction points
+            universe.getEarth()->getPosition(),
+            EARTH_MASS,
+            universe.getSun()->getPosition(),
+            universe.getMoon()->getPosition(),
+            500 // Number of prediction points
         );
       }
     }

@@ -93,8 +93,7 @@ private:
 
   // ========== SATELLITE RENDER HELPER FUNCTIONS ==========
   // Individual satellite rendering functions for better code organization
-  void renderSatelliteOrbitPath(const std::shared_ptr<Satellite> &satellite,
-                                const class VisualizationState &vizState);
+  void renderOrbitPath(const std::vector<glm::dvec3> &orbitPath);
   void renderSatellitePredictedOrbit(const std::shared_ptr<Satellite> &satellite,
                                      const Satellite *selectedSatellite);
   void renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite);

@@ -132,6 +132,12 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
   lineShader->setMat4("view", view);
   lineShader->setMat4("projection", projection);
 
+  // Render Moon's orbit path (if it has physics enabled)
+  if (universe.getMoon()->isPhysicsEnabled())
+  {
+    renderOrbitPath(universe.getMoon()->getOrbitPath());
+  }
+
   // Render satellites with all visualization options
   renderSatellites(universe.getSatellites(), vizState, selectedSatellite);
 
@@ -267,7 +273,7 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
     // Render historical orbit path
     if (vizState.shouldDrawOrbit(satellite.get()))
     {
-      renderSatelliteOrbitPath(satellite, vizState);
+      renderOrbitPath(satellite->getOrbitPath());
     }
 
     // Render predicted future orbit (only for selected satellite)
@@ -297,10 +303,8 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
 // SATELLITE RENDER HELPER FUNCTIONS
 // ========================================
 
-void Renderer::renderSatelliteOrbitPath(const std::shared_ptr<Satellite> &satellite,
-                                        const VisualizationState &vizState)
+void Renderer::renderOrbitPath(const std::vector<glm::dvec3> &orbitPath)
 {
-  const auto &orbitPath = satellite->getOrbitPath();
   if (orbitPath.size() < 2)
     return;
 
@@ -317,8 +321,7 @@ void Renderer::renderSatelliteOrbitPath(const std::shared_ptr<Satellite> &satell
   // Setup line rendering
   glLineWidth(10.0f);
   lineShader->use();
-  glm::vec3 orbitColor = satellite->getColor();
-  lineShader->setVec3("lineColor", orbitColor);
+  lineShader->setVec3("lineColor", glm::vec3(0.3f, 0.9f, 1.0f)); // cyan
   lineRenderer.draw();
   glLineWidth(2.0f); // Reset
 }
