@@ -93,14 +93,12 @@ private:
 
   // ========== SATELLITE RENDER HELPER FUNCTIONS ==========
   // Individual satellite rendering functions for better code organization
-  void renderOrbitPath(const std::vector<glm::dvec3> &orbitPath);
-  void renderSatellitePredictedOrbit(const std::shared_ptr<Satellite> &satellite,
-                                     const Satellite *selectedSatellite);
   void renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite);
-  void renderSatelliteFootprint(const std::shared_ptr<Satellite> &satellite,
-                                const class VisualizationState &vizState);
-  void renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite,
-                                     const class VisualizationState &vizState);
+
+  // Generic line rendering helper (handles both dvec3 and vec3 vertices)
+  void renderLine(const std::vector<glm::dvec3> &vertices, const glm::vec3 &color, float lineWidth = 2.0f);
+  void renderLine(const std::vector<glm::vec3> &vertices, const glm::vec3 &color, float lineWidth = 2.0f);
+  void renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite);
 };
 
 #endif // RENDERER_H

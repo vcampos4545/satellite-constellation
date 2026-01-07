@@ -5,14 +5,14 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 
-Satellite::Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, const glm::vec3 &color, int planeId, int indexInPlane, const std::string &name)
+Satellite::Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, int planeId, int indexInPlane, const std::string &name, SatelliteType type)
     : orbit(orbit),
       position(initPos),
       velocity(initVel),
-      color(color),
       planeId(planeId),
       indexInPlane(indexInPlane),
       name(name),
+      type(type),
       quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion (no rotation)
       angularVelocity(0.0, 0.0, 0.0)  // No initial rotation
 {

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include <set>
 
 OBJMesh::OBJMesh()
     : VAO(0), VBO(0), EBO(0)
@@ -298,12 +299,14 @@ bool OBJMesh::load(const std::string &filepath)
 
 bool OBJMesh::loadMTL(const std::string &filepath)
 {
+  std::cout << "Attempting to load MTL file: " << filepath << std::endl;
   std::ifstream file(filepath);
   if (!file.is_open())
   {
     std::cerr << "Failed to open MTL file: " << filepath << std::endl;
     return false;
   }
+  std::cout << "MTL file opened successfully: " << filepath << std::endl;
 
   Material currentMaterial;
   std::string currentMaterialName;
@@ -358,6 +361,15 @@ bool OBJMesh::loadMTL(const std::string &filepath)
 
   file.close();
 
+  std::cout << "Loaded " << materials.size() << " materials from MTL file" << std::endl;
+  for (const auto &matPair : materials)
+  {
+    std::cout << "  Material: " << matPair.first << " - Diffuse RGB("
+              << matPair.second.diffuse.r << ", "
+              << matPair.second.diffuse.g << ", "
+              << matPair.second.diffuse.b << ")" << std::endl;
+  }
+
   // Load textures for all materials
   // Extract base directory from MTL filepath
   size_t lastSlash = filepath.find_last_of("/\\");
@@ -395,6 +407,19 @@ void OBJMesh::draw(Shader &shader) const
     return;
   }
 
+  // Debug output (only on first draw call for this mesh)
+  // We track this per-instance to avoid spamming the console every frame
+  static std::set<const OBJMesh *> debugPrintedMeshes;
+  if (debugPrintedMeshes.find(this) == debugPrintedMeshes.end())
+  {
+    std::cout << "Drawing OBJ mesh with " << groups.size() << " groups and " << materials.size() << " materials" << std::endl;
+    for (const auto &group : groups)
+    {
+      std::cout << "  Group '" << group.name << "' uses material '" << group.materialName << "'" << std::endl;
+    }
+    debugPrintedMeshes.insert(this);
+  }
+
   glBindVertexArray(VAO);
 
   // Draw each group with its material
@@ -428,11 +453,19 @@ void OBJMesh::draw(Shader &shader) const
           shader.setVec3("objectColor", mat.diffuse);
         }
       }
+      else
+      {
+        // Material not found - use default gray color
+        shader.setBool("useTexture", false);
+        shader.setVec3("objectColor", glm::vec3(0.5f, 0.5f, 0.5f));
+        std::cerr << "Warning: Material '" << group.materialName << "' not found for group '" << group.name << "'" << std::endl;
+      }
     }
     else
     {
-      // No material assigned, disable texture
+      // No material assigned - use default white color
       shader.setBool("useTexture", false);
+      shader.setVec3("objectColor", glm::vec3(1.0f, 1.0f, 1.0f));
     }
 
     glDrawElements(GL_TRIANGLES, group.indexCount, GL_UNSIGNED_INT, (void *)(group.startIndex * sizeof(unsigned int)));

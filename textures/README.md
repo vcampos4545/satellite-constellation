@@ -3,6 +3,7 @@
 Place your texture files in this directory:
 - `earth.jpg` - Earth texture
 - `moon.jpg` - Moon texture
+- `sun.jpg` - Sun texture
 - `stars.jpg` - Star field background texture
 
 ## Recommended Sources for Clean Earth Textures
@@ -63,6 +64,44 @@ Save your texture as `earth.jpg` in this directory.
 - **Colors**: Grayscale or natural lunar coloring
 
 Save your texture as `moon.jpg` in this directory.
+
+---
+
+## Recommended Sources for Sun Textures
+
+### 1. Solar System Scope (Recommended)
+- URL: https://www.solarsystemscope.com/textures/
+- Download: "Sun 2K" texture
+- High-quality solar surface texture
+- Free for non-commercial use
+
+### 2. NASA Solar Dynamics Observatory (SDO)
+- URL: https://sdo.gsfc.nasa.gov/gallery/main
+- Real solar imagery from NASA's SDO satellite
+- Multiple wavelengths available
+- Public domain
+
+### 3. Planet Pixel Emporium
+- URL: http://planetpixelemporium.com/sun.html
+- Clean solar surface maps
+- Good for simulation use
+
+### 4. NASA SOHO Mission
+- URL: https://soho.nascom.nasa.gov/gallery/
+- Solar images from SOHO spacecraft
+- Real sun photography
+- Public domain
+
+## What to Look For (Sun)
+
+- **Format**: Equirectangular projection (latitude-longitude map)
+- **Style**: Solar surface with visible granulation/sunspots
+- **Resolution**: 2K (2048x1024) or higher works well
+- **Colors**: Natural solar yellow/orange coloring
+- **Detail**: Surface features like granulation patterns add realism
+- **Brightness**: Should be vibrant but not overexposed
+
+Save your texture as `sun.jpg` in this directory.
 
 ---
 

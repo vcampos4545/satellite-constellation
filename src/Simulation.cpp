@@ -7,6 +7,7 @@ Simulation::Simulation(bool headless)
     : m_headless(headless),
       m_isPaused(false),
       m_timeWarpMultiplier(1.0f),
+      m_elapsedTime(0.0),
       m_universe(),
       m_gui(nullptr)
 {
@@ -67,5 +68,8 @@ void Simulation::update(float deltaTime)
     float warpedDeltaTime = deltaTime * m_timeWarpMultiplier;
     // Update orbital physics with sub-stepping (max 0.1 second physics steps)
     m_universe.update(warpedDeltaTime, 0.1);
+
+    // Track elapsed simulation time (warped time)
+    m_elapsedTime += warpedDeltaTime;
   }
 }

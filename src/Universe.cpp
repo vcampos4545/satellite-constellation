@@ -13,6 +13,157 @@
 #include <memory>
 #include <glm/gtc/matrix_transform.hpp>
 
+/* ==================== EXAMPLES =================== */
+
+void addGPSConstellation(Universe *universe)
+{
+  // GPS constellation: 24 satellites in 6 planes at 55° inclination, ~20,200 km altitude
+  const double semiMajorAxis = EARTH_RADIUS + GPS_ALTITUDE;
+  const double inclination = glm::radians(55.0);
+  const int numPlanes = 6;
+  const int satellitesPerPlane = 4;
+
+  for (int plane = 0; plane < numPlanes; ++plane)
+  {
+    double raan = (2.0 * PI * plane) / numPlanes;
+
+    for (int sat = 0; sat < satellitesPerPlane; ++sat)
+    {
+      double trueAnomaly = (2.0 * PI * sat) / satellitesPerPlane;
+
+      // Create orbit object (circular orbit: e=0, w=0)
+      Orbit orbit{semiMajorAxis, 0.0, inclination, raan, 0.0, trueAnomaly};
+
+      // Generate satellite name
+      std::string satName = "GPS-" + std::to_string(plane * satellitesPerPlane + sat + 1);
+
+      // Create satellite (position/velocity computed from orbit)
+      universe->addSatelliteWithOrbit(
+          orbit,
+          plane,
+          sat,
+          satName);
+    }
+  }
+}
+
+void addGEOConstellation(Universe *universe, int numSatellites)
+{
+  const double semiMajorAxis = EARTH_RADIUS + GEO_ALTITUDE;
+
+  for (int sat = 0; sat < numSatellites; ++sat)
+  {
+    double trueAnomaly = (2.0 * PI * sat) / numSatellites;
+
+    Orbit orbit{semiMajorAxis, 0.0, 0.0, 0.0, 0.0, trueAnomaly};
+    std::string satName = "GEO" + std::to_string(sat);
+
+    universe->addSatelliteWithOrbit(
+        orbit,
+        -4,
+        sat,
+        satName);
+  }
+}
+
+void addStarlinkConstellation(Universe *universe, int numPlanes, int satellitesPerPlane)
+{
+  // Starlink constellation: ~550 km altitude, 53° inclination (optimized for mid-latitudes)
+  const double semiMajorAxis = EARTH_RADIUS + LEO_ALTITUDE;
+  const double inclination = glm::radians(53.0);
+
+  for (int plane = 0; plane < numPlanes; ++plane)
+  {
+    double raan = (2.0 * PI * plane) / numPlanes;
+
+    for (int sat = 0; sat < satellitesPerPlane; ++sat)
+    {
+      double trueAnomaly = (2.0 * PI * sat) / satellitesPerPlane;
+
+      // Create orbit object (circular orbit: e=0, w=0)
+      Orbit orbit{semiMajorAxis, 0.0, inclination, raan, 0.0, trueAnomaly};
+
+      // Generate satellite name
+      std::string satName = "Starlink-" + std::to_string(plane * satellitesPerPlane + sat + 1);
+
+      // Create satellite (position/velocity computed from orbit)
+      universe->addSatelliteWithOrbit(
+          orbit,
+          plane,
+          sat,
+          satName,
+          SatelliteType::STARLINK);
+    }
+  }
+}
+
+void addReflectConstellation(Universe *universe, int numSatellites)
+{
+  const double semiMajorAxis = EARTH_RADIUS + 600e3;
+  const double inclination = glm::radians(98.0); // SSO
+
+  for (int sat = 0; sat < numSatellites; ++sat)
+  {
+    double trueAnomaly = (2.0 * PI * sat) / numSatellites;
+
+    Orbit orbit{semiMajorAxis, 0.0, inclination, 0.0, 0.0, trueAnomaly};
+    std::string satName = "Reflect-" + std::to_string(sat);
+
+    universe->addSatelliteWithOrbit(
+        orbit,
+        -3,
+        sat,
+        satName);
+  }
+}
+
+void addMolniyaConstellation(Universe *universe, int numSatellites)
+{
+  // Molniya constellation: Highly elliptical orbit for high-latitude coverage
+  // 3 satellites with 8-hour phase separation gives continuous coverage (period ~12 hours)
+  const double semiMajorAxis = MOLNIYA_SEMI_MAJOR_AXIS;
+  const double eccentricity = MOLNIYA_ECCENTRICITY;
+  const double inclination = glm::radians(MOLNIYA_INCLINATION); // 63.4° - critical inclination
+  const double argOfPerigee = glm::radians(270.0);              // Apogee over northern hemisphere
+
+  for (int sat = 0; sat < numSatellites; ++sat)
+  {
+    double raan = (2.0 * PI * sat) / numSatellites;
+    double trueAnomaly = glm::radians(90.0); // Start at apogee (maximum dwell time)
+
+    // Create orbit object (elliptical orbit with e=0.72)
+    Orbit orbit{semiMajorAxis, eccentricity, inclination, raan, argOfPerigee, trueAnomaly};
+
+    // Generate satellite name
+    std::string satName = "Molniya-" + std::to_string(sat + 1);
+
+    // Create satellite (position/velocity computed from orbit)
+    universe->addSatelliteWithOrbit(
+        orbit,
+        -2,  // planeId (-2 for Molniya - each in different plane)
+        sat,
+        satName);
+  }
+
+  std::cout << "Added Molniya constellation with " << numSatellites << " satellites" << std::endl;
+}
+
+void addCities(Universe *universe)
+{
+  // Add ground stations at major city locations
+  const int numCities = sizeof(MAJOR_CITIES) / sizeof(MAJOR_CITIES[0]);
+
+  for (int i = 0; i < numCities; ++i)
+  {
+    const City &city = MAJOR_CITIES[i];
+    universe->addGroundStation(city.name, city.latitude, city.longitude);
+  }
+
+  std::cout << "Added " << numCities << " ground stations at major city locations" << std::endl;
+}
+
+/* ================== UNIVERSE IMPLEMENTATION =================== */
+
 Universe::Universe()
 {
   /* DO NOT CHANGE */
@@ -22,30 +173,27 @@ Universe::Universe()
 
   /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 
-  addGPSConstellation();
-  addGEOConstellation();
-  addStarlinkConstellation(8, 4); // numPlanes, satsPerPlane
-  addReflectConstellation();
-  addMolniyaConstellation(3); // 3 satellites for continuous coverage
-  addGroundStations();
+  addGPSConstellation(this);
+  addGEOConstellation(this, 3);         // 3 GEO satellites
+  addStarlinkConstellation(this, 8, 4); // 8 planes, 4 sats per plane
+  addReflectConstellation(this, 1);     // 1 SSO satellite
+  addMolniyaConstellation(this, 3);     // 3 satellites for continuous coverage
+  addCities(this);
 
   // Add cubesats
   Orbit orbit{EARTH_RADIUS + 700e3, 0.0, 45.0, 0.0, 0.0, 0.0};
-  auto cube1U = createSatelliteWithOrbit(
+  addSatelliteWithOrbit(
       orbit,
-      glm::vec3(0.3f, 0.9f, 0.0f), // Yellow-green color
       4,
       0,
-      "Cubesat1U");
-  auto cube2U = createSatelliteWithOrbit(
+      "Cubesat1U",
+      SatelliteType::CUBESAT_1U);
+  addSatelliteWithOrbit(
       orbit,
-      glm::vec3(0.3f, 0.9f, 0.0f), // Yellow-green color
       5,
       0,
-      "Cubesat2U");
-
-  satellites.push_back(cube1U);
-  satellites.push_back(cube2U);
+      "Cubesat2U",
+      SatelliteType::CUBESAT_2U);
 
   /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 }
@@ -152,19 +300,19 @@ void Universe::initializeMoon()
   bodies.push_back(moon);
 }
 
-std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
+void Universe::addSatelliteWithOrbit(
     const Orbit &orbit,
-    const glm::vec3 &color,
     int planeId,
     int indexInPlane,
-    const std::string &name)
+    const std::string &name,
+    SatelliteType type)
 {
   // Convert orbital elements to Cartesian position and velocity
   glm::dvec3 position, velocity;
   orbit.toCartesian(position, velocity, G * EARTH_MASS);
 
   // Create satellite with computed position/velocity
-  auto satellite = std::make_shared<Satellite>(orbit, position, velocity, color, planeId, indexInPlane, name);
+  auto satellite = std::make_shared<Satellite>(orbit, position, velocity, planeId, indexInPlane, name, type);
 
   // Enable ADCS with reaction wheels
   satellite->enableReactionWheels(true);
@@ -173,7 +321,7 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
 
   // Assign flight software based on satellite type
   // Cubesats get PassiveFSW, all others get StandardFSW
-  if (name.find("Cubesat") != std::string::npos)
+  if (type == SatelliteType::CUBESAT_1U || type == SatelliteType::CUBESAT_2U)
   {
     satellite->setFlightSoftware(std::make_shared<PassiveFSW>());
   }
@@ -182,172 +330,13 @@ std::shared_ptr<Satellite> Universe::createSatelliteWithOrbit(
     satellite->setFlightSoftware(std::make_shared<StandardFSW>());
   }
 
-  return satellite;
+  satellites.push_back(satellite);
 }
 
-void Universe::addGPSConstellation()
+void Universe::addGroundStation(const std::string name, double latitude, double longitude)
 {
-  // GPS constellation: 24 satellites in 6 planes at 55° inclination, ~20,200 km altitude
-  const double semiMajorAxis = EARTH_RADIUS + GPS_ALTITUDE;
-  const double inclination = glm::radians(55.0);
-  const int numPlanes = 6;
-  const int satellitesPerPlane = 4;
-
-  for (int plane = 0; plane < numPlanes; ++plane)
-  {
-    double raan = (2.0 * PI * plane) / numPlanes;
-
-    for (int sat = 0; sat < satellitesPerPlane; ++sat)
-    {
-      double trueAnomaly = (2.0 * PI * sat) / satellitesPerPlane;
-
-      // Create orbit object (circular orbit: e=0, w=0)
-      Orbit orbit{semiMajorAxis, 0.0, inclination, raan, 0.0, trueAnomaly};
-
-      // Generate satellite name
-      std::string satName = "GPS-" + std::to_string(plane * satellitesPerPlane + sat + 1);
-
-      // Create satellite (position/velocity computed from orbit)
-      auto satellite = createSatelliteWithOrbit(
-          orbit,
-          glm::vec3(0.3f, 0.9f, 0.0f), // Yellow-green color
-          plane,
-          sat,
-          satName);
-
-      satellites.push_back(satellite);
-    }
-  }
-}
-
-void Universe::addGEOConstellation(int numSatellites)
-{
-  const double semiMajorAxis = EARTH_RADIUS + GEO_ALTITUDE;
-
-  for (int sat = 0; sat < numSatellites; ++sat)
-  {
-    double trueAnomaly = (2.0 * PI * sat) / numSatellites;
-
-    Orbit orbit{semiMajorAxis, 0.0, 0.0, 0.0, 0.0, trueAnomaly};
-    std::string satName = "GEO" + std::to_string(sat);
-
-    auto satellite = createSatelliteWithOrbit(
-        orbit,
-        glm::vec3(1.0f, 0.0f, 0.0f), // red
-        -4,
-        sat,
-        satName);
-
-    satellites.push_back(satellite);
-  }
-}
-
-void Universe::addStarlinkConstellation(int numPlanes, int satellitesPerPlane)
-{
-  // Starlink constellation: ~550 km altitude, 53° inclination (optimized for mid-latitudes)
-  const double semiMajorAxis = EARTH_RADIUS + LEO_ALTITUDE;
-  const double inclination = glm::radians(53.0);
-
-  for (int plane = 0; plane < numPlanes; ++plane)
-  {
-    double raan = (2.0 * PI * plane) / numPlanes;
-
-    for (int sat = 0; sat < satellitesPerPlane; ++sat)
-    {
-      double trueAnomaly = (2.0 * PI * sat) / satellitesPerPlane;
-
-      // Create orbit object (circular orbit: e=0, w=0)
-      Orbit orbit{semiMajorAxis, 0.0, inclination, raan, 0.0, trueAnomaly};
-
-      // Generate satellite name
-      std::string satName = "Starlink-" + std::to_string(plane * satellitesPerPlane + sat + 1);
-
-      // Create satellite (position/velocity computed from orbit)
-      auto satellite = createSatelliteWithOrbit(
-          orbit,
-          glm::vec3(0.3f, 0.9f, 1.0f), // Bright cyan color
-          plane,
-          sat,
-          satName);
-
-      // Enable station keeping (Starlink uses Hall effect thrusters)
-      satellite->enableStationKeeping(true, 550e3); // Maintain 550 km altitude
-
-      satellites.push_back(satellite);
-    }
-  }
-}
-
-void Universe::addReflectConstellation(int numSatellites)
-{
-  const double semiMajorAxis = EARTH_RADIUS + 600e3;
-  const double inclination = glm::radians(98.0); // SSO
-
-  for (int sat = 0; sat < numSatellites; ++sat)
-  {
-    double trueAnomaly = (2.0 * PI * sat) / numSatellites;
-
-    Orbit orbit{semiMajorAxis, 0.0, inclination, 0.0, 0.0, trueAnomaly};
-    std::string satName = "Reflect-" + std::to_string(sat);
-
-    auto satellite = createSatelliteWithOrbit(
-        orbit,
-        glm::vec3(1.0f, 0.0f, 0.0f), // red
-        -3,
-        sat,
-        satName);
-
-    satellites.push_back(satellite);
-  }
-}
-
-void Universe::addMolniyaConstellation(int numSatellites)
-{
-  // Molniya constellation: Highly elliptical orbit for high-latitude coverage
-  // 3 satellites with 8-hour phase separation gives continuous coverage (period ~12 hours)
-  const double semiMajorAxis = MOLNIYA_SEMI_MAJOR_AXIS;
-  const double eccentricity = MOLNIYA_ECCENTRICITY;
-  const double inclination = glm::radians(MOLNIYA_INCLINATION); // 63.4° - critical inclination
-  const double argOfPerigee = glm::radians(270.0);              // Apogee over northern hemisphere
-
-  for (int sat = 0; sat < numSatellites; ++sat)
-  {
-    double raan = (2.0 * PI * sat) / numSatellites;
-    double trueAnomaly = glm::radians(90.0); // Start at apogee (maximum dwell time)
-
-    // Create orbit object (elliptical orbit with e=0.72)
-    Orbit orbit{semiMajorAxis, eccentricity, inclination, raan, argOfPerigee, trueAnomaly};
-
-    // Generate satellite name
-    std::string satName = "Molniya-" + std::to_string(sat + 1);
-
-    // Create satellite (position/velocity computed from orbit)
-    auto satellite = createSatelliteWithOrbit(
-        orbit,
-        glm::vec3(1.0f, 0.5f, 0.2f), // Orange/red color
-        -2,                          // planeId (-2 for Molniya - each in different plane)
-        sat,
-        satName);
-
-    satellites.push_back(satellite);
-  }
-
-  std::cout << "Added Molniya constellation with " << numSatellites << " satellites" << std::endl;
-}
-
-void Universe::addGroundStations()
-{
-  // Add ground stations at major city locations
-  const int numCities = sizeof(MAJOR_CITIES) / sizeof(MAJOR_CITIES[0]);
-
-  for (int i = 0; i < numCities; ++i)
-  {
-    const City &city = MAJOR_CITIES[i];
-    auto groundStation = std::make_shared<GroundStation>(city.name, city.latitude, city.longitude);
-    groundStations.push_back(groundStation);
-  }
-
-  std::cout << "Added " << numCities << " ground stations at major city locations" << std::endl;
+  auto groundStation = std::make_shared<GroundStation>(name, latitude, longitude);
+  groundStations.push_back(groundStation);
 }
 
 void Universe::update(double deltaTime, double maxPhysicsStep)

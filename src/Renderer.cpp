@@ -135,7 +135,7 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
   // Render Moon's orbit path (if it has physics enabled)
   if (universe.getMoon()->isPhysicsEnabled())
   {
-    renderOrbitPath(universe.getMoon()->getOrbitPath());
+    renderLine(universe.getMoon()->getOrbitPath(), glm::vec3(1.0f, 1.0f, 1.0f), 10.0f);
   }
 
   // Render satellites with all visualization options
@@ -270,31 +270,31 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
   // Single loop through all satellites, rendering each component as needed
   for (const auto &satellite : satellites)
   {
+    // Render satellite 3D geometry (always rendered)
+    renderSatelliteGeometry(satellite);
+
     // Render historical orbit path
     if (vizState.shouldDrawOrbit(satellite.get()))
     {
-      renderOrbitPath(satellite->getOrbitPath());
+      renderLine(satellite->getOrbitPath(), glm::vec3(1.0f, 1.0f, 1.0f), 10.0f); // White, 10px wide
     }
 
     // Render predicted future orbit (only for selected satellite)
     if (selectedSatellite && satellite.get() == selectedSatellite)
     {
-      renderSatellitePredictedOrbit(satellite, selectedSatellite);
+      renderLine(satellite->getPredictedOrbit(), glm::vec3(0.3f, 0.8f, 1.0f), 10.0f); // Cyan, 10px wide
     }
-
-    // Render satellite 3D geometry (always rendered)
-    renderSatelliteGeometry(satellite);
 
     // Render ground footprint circle
     if (vizState.shouldDrawFootprint(satellite.get()))
     {
-      renderSatelliteFootprint(satellite, vizState);
+      renderLine(satellite->getFootprintCircle(), glm::vec3(0.8f, 1.0f, 0.3f), 2.0f); // Yellow-green, 2px wide
     }
 
     // Render attitude pointing vector
     if (vizState.shouldDrawAttitudeVector(satellite.get()))
     {
-      renderSatelliteAttitudeVector(satellite, vizState);
+      renderSatelliteAttitudeVector(satellite);
     }
   }
 }
@@ -303,53 +303,38 @@ void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &s
 // SATELLITE RENDER HELPER FUNCTIONS
 // ========================================
 
-void Renderer::renderOrbitPath(const std::vector<glm::dvec3> &orbitPath)
+// Generic line rendering helper - dvec3 version (converts to vec3)
+void Renderer::renderLine(const std::vector<glm::dvec3> &vertices, const glm::vec3 &color, float lineWidth)
 {
-  if (orbitPath.size() < 2)
+  if (vertices.size() < 2)
     return;
 
   // Convert dvec3 to vec3 for rendering
-  std::vector<glm::vec3> pathVertices;
-  pathVertices.reserve(orbitPath.size());
-  for (const auto &pos : orbitPath)
+  std::vector<glm::vec3> convertedVertices;
+  convertedVertices.reserve(vertices.size());
+  for (const auto &pos : vertices)
   {
-    pathVertices.push_back(glm::vec3(pos));
+    convertedVertices.push_back(glm::vec3(pos));
   }
 
-  lineRenderer.setVertices(pathVertices);
-
-  // Setup line rendering
-  glLineWidth(10.0f);
-  lineShader->use();
-  lineShader->setVec3("lineColor", glm::vec3(0.3f, 0.9f, 1.0f)); // cyan
-  lineRenderer.draw();
-  glLineWidth(2.0f); // Reset
+  // Call the vec3 version
+  renderLine(convertedVertices, color, lineWidth);
 }
 
-void Renderer::renderSatellitePredictedOrbit(const std::shared_ptr<Satellite> &satellite,
-                                             const Satellite *selectedSatellite)
+// Generic line rendering helper - vec3 version (direct rendering)
+void Renderer::renderLine(const std::vector<glm::vec3> &vertices, const glm::vec3 &color, float lineWidth)
 {
-  const auto &predictedPath = satellite->getPredictedOrbit();
-  if (predictedPath.size() < 2)
+  if (vertices.size() < 2)
     return;
 
-  // Convert dvec3 to vec3 for rendering
-  std::vector<glm::vec3> predVertices;
-  predVertices.reserve(predictedPath.size());
-  for (const auto &pos : predictedPath)
-  {
-    predVertices.push_back(glm::vec3(pos));
-  }
+  lineRenderer.setVertices(vertices);
 
-  lineRenderer.setVertices(predVertices);
-
-  // Setup line rendering (cyan color for predicted orbit)
-  glLineWidth(10.0f);
+  // Setup line rendering
+  glLineWidth(lineWidth);
   lineShader->use();
-  glm::vec3 predictedColor = glm::vec3(0.3f, 0.8f, 1.0f); // Cyan
-  lineShader->setVec3("lineColor", predictedColor);
+  lineShader->setVec3("lineColor", color);
   lineRenderer.draw();
-  glLineWidth(2.0f); // Reset
+  glLineWidth(2.0f); // Reset to default
 }
 
 void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite)
@@ -367,11 +352,11 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
   sphereShader->setBool("isEmissive", true); // Satellites are self-illuminated
 
   // Check satellite type for specialized mesh
-  bool isStarlink = satellite->getName().find("Starlink") != std::string::npos;
-  bool isCubesat1U = satellite->getName().find("Cubesat1U") != std::string::npos;
-  bool isCubesat2U = satellite->getName().find("Cubesat2U") != std::string::npos;
+  SatelliteType satType = satellite->getType();
 
-  if ((isStarlink && starlinkMeshLoaded) || (isCubesat1U && cubesat1UMeshLoaded) || (isCubesat2U && cubesat2UMeshLoaded))
+  if ((satType == SatelliteType::STARLINK && starlinkMeshLoaded) ||
+      (satType == SatelliteType::CUBESAT_1U && cubesat1UMeshLoaded) ||
+      (satType == SatelliteType::CUBESAT_2U && cubesat2UMeshLoaded))
   {
     // Render 3D model with materials
     glm::mat4 meshModel = glm::mat4(1.0f);
@@ -380,17 +365,17 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
     meshModel = glm::scale(meshModel, glm::vec3(0.8e4f)); // ~8km scale
     sphereShader->setMat4("model", meshModel);
 
-    if (isStarlink)
+    if (satType == SatelliteType::STARLINK)
       starlinkMesh.draw(*sphereShader);
-    else if (isCubesat1U)
+    else if (satType == SatelliteType::CUBESAT_1U)
       cubesat1UMesh.draw(*sphereShader);
-    else if (isCubesat2U)
+    else if (satType == SatelliteType::CUBESAT_2U)
       cubesat2UMesh.draw(*sphereShader);
   }
   else
   {
     // Fallback: Simple geometry (cube + solar panels)
-    glm::vec3 brightColor = satellite->getColor() * 2.0f;
+    glm::vec3 brightColor = glm::vec3(0.8f, 0.8f, 0.8f); // Default gray color
     sphereShader->setVec3("objectColor", brightColor);
 
     // Central body
@@ -425,33 +410,7 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
   }
 }
 
-void Renderer::renderSatelliteFootprint(const std::shared_ptr<Satellite> &satellite,
-                                        const VisualizationState &vizState)
-{
-  const auto &footprintCircle = satellite->getFootprintCircle();
-  if (footprintCircle.size() < 2)
-    return;
-
-  // Convert dvec3 to vec3 for rendering
-  std::vector<glm::vec3> footprintVertices;
-  footprintVertices.reserve(footprintCircle.size());
-  for (const auto &pos : footprintCircle)
-  {
-    footprintVertices.push_back(glm::vec3(pos));
-  }
-
-  lineRenderer.setVertices(footprintVertices);
-
-  // Setup line rendering (yellow-green for footprint)
-  glLineWidth(2.0f);
-  lineShader->use();
-  glm::vec3 footprintColor = glm::vec3(0.8f, 1.0f, 0.3f);
-  lineShader->setVec3("lineColor", footprintColor);
-  lineRenderer.draw();
-}
-
-void Renderer::renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite,
-                                             const VisualizationState &vizState)
+void Renderer::renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite)
 {
   // Get satellite position and pointing direction (Z-axis in body frame)
   glm::dvec3 satPos = satellite->getPosition();
@@ -466,15 +425,7 @@ void Renderer::renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &s
       glm::vec3(satPos),
       glm::vec3(arrowEnd)};
 
-  lineRenderer.setVertices(attitudeArrow);
-
-  // Setup line rendering (red for attitude vector)
-  glLineWidth(3.0f);
-  lineShader->use();
-  glm::vec3 attitudeColor = glm::vec3(1.0f, 0.0f, 0.0f); // Red
-  lineShader->setVec3("lineColor", attitudeColor);
-  lineRenderer.draw();
-  glLineWidth(2.0f); // Reset
+  renderLine(attitudeArrow, glm::vec3(1.0f, 0.0f, 0.0f), 3.0f); // Red, 3px wide
 }
 
 void Renderer::renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations)

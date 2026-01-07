@@ -498,6 +498,52 @@ void GUI::renderMenuBar()
     ImGui::Separator();
     ImGui::SameLine();
 
+    // Time information display
+    ImGui::Separator();
+
+    // Get elapsed time and convert to readable format
+    double totalSeconds = m_simulation->getElapsedTime();
+    int days = (int)(totalSeconds / 86400.0);
+    int hours = (int)((totalSeconds - days * 86400.0) / 3600.0);
+    int minutes = (int)((totalSeconds - days * 86400.0 - hours * 3600.0) / 60.0);
+    int seconds = (int)(totalSeconds - days * 86400.0 - hours * 3600.0 - minutes * 60.0);
+
+    // Display elapsed time
+    if (days > 0)
+    {
+      ImGui::Text("Elapsed: %dd %02dh %02dm %02ds", days, hours, minutes, seconds);
+    }
+    else if (hours > 0)
+    {
+      ImGui::Text("Elapsed: %dh %02dm %02ds", hours, minutes, seconds);
+    }
+    else if (minutes > 0)
+    {
+      ImGui::Text("Elapsed: %dm %02ds", minutes, seconds);
+    }
+    else
+    {
+      ImGui::Text("Elapsed: %ds", seconds);
+    }
+
+    // Display time warp
+    ImGui::SameLine();
+    float warp = m_simulation->getTimeWarp();
+    if (warp >= 1000.0f)
+    {
+      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "| Warp: %.0fx", warp);
+    }
+    else if (warp >= 10.0f)
+    {
+      ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.3f, 1.0f), "| Warp: %.0fx", warp);
+    }
+    else
+    {
+      ImGui::Text("| Warp: %.1fx", warp);
+    }
+
+    ImGui::Separator();
+
     // Selected object indicator
     if (m_selectedObject.isValid())
     {

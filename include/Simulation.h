@@ -28,6 +28,9 @@ public:
   void setTimeWarp(float multiplier) { m_timeWarpMultiplier = multiplier; }
   float getTimeWarp() const { return m_timeWarpMultiplier; }
 
+  // Time tracking
+  double getElapsedTime() const { return m_elapsedTime; }
+
   // Access to universe (for GUI to render/query)
   Universe& getUniverse() { return m_universe; }
   const Universe& getUniverse() const { return m_universe; }
@@ -36,6 +39,7 @@ private:
   bool m_headless;
   bool m_isPaused;
   float m_timeWarpMultiplier;
+  double m_elapsedTime; // Total elapsed simulation time (in seconds)
 
   Universe m_universe;
   std::unique_ptr<GUI> m_gui;

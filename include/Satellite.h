@@ -12,6 +12,15 @@
 // Forward declaration
 class FlightSoftwareTask;
 
+// Satellite types for rendering and identification
+enum class SatelliteType
+{
+  DEFAULT,      // Generic satellite with simple geometry
+  CUBESAT_1U,   // 1U CubeSat (10cm cube)
+  CUBESAT_2U,   // 2U CubeSat (10x10x20cm)
+  STARLINK      // SpaceX Starlink satellite
+};
+
 // Attitude control modes
 enum class AttitudeControlMode
 {
@@ -35,7 +44,7 @@ enum class ControlAlgorithm
 class Satellite
 {
 public:
-  Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, const glm::vec3 &color, int planeId = 0, int indexInPlane = 0, const std::string &name = "");
+  Satellite(const Orbit &orbit, const glm::dvec3 &initPos, const glm::dvec3 &initVel, int planeId = 0, int indexInPlane = 0, const std::string &name = "", SatelliteType type = SatelliteType::DEFAULT);
 
   // Update physics
   void update(double deltaTime, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPosition, const glm::dvec3 &moonPosition);
@@ -67,13 +76,13 @@ public:
   // Getters
   glm::dvec3 getPosition() const { return position; }
   glm::dvec3 getVelocity() const { return velocity; }
-  glm::vec3 getColor() const { return color; }
   const std::vector<glm::dvec3> &getOrbitPath() const { return orbitPath; }
   const std::vector<glm::dvec3> &getPredictedOrbit() const { return predictedOrbitPath; }
   const std::vector<glm::dvec3> &getFootprintCircle() const { return footprintCircle; }
   int getPlaneId() const { return planeId; }
   int getIndexInPlane() const { return indexInPlane; }
   std::string getName() const { return name; }
+  SatelliteType getType() const { return type; }
 
   // Orbit prediction
   void calculatePredictedOrbit(const glm::dvec3 &earthCenter, double earthMass,
@@ -258,7 +267,6 @@ private:
   Orbit orbit;         // Orbit paramters
   glm::dvec3 position; // Position in meters (x, y, z)
   glm::dvec3 velocity; // Velocity in meters/second
-  glm::vec3 color;     // RGB color for rendering
 
   // Attitude state (orientation in space)
   glm::dquat quaternion;      // Attitude quaternion (body frame to inertial frame)
@@ -380,6 +388,7 @@ private:
   int planeId;      // Orbital plane identifier
   int indexInPlane; // Index of this satellite within its plane
   std::string name; // Satellite name/identifier
+  SatelliteType type; // Satellite type for rendering and identification
 
   // Alert system
   AlertSystem alertSystem;
