@@ -60,7 +60,9 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 
 ### Earth-centered inertial (ECI)
 
-https://en.wikipedia.org/wiki/Earth-centered_inertial
+<p align="center" width="100%">
+<image src="https://upload.wikimedia.org/wikipedia/commons/3/32/Earth_Centered_Inertial_Coordinate_System.png" width="80%">
+</p>
 
 - Z: Up (North Pole)
 - X: vernal equinox (0 degress longitude)
