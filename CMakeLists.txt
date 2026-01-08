@@ -20,8 +20,17 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # Include directories
-include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/external)
+include_directories(${CMAKE_SOURCE_DIR}/core)
+include_directories(${CMAKE_SOURCE_DIR}/dynamics)
+include_directories(${CMAKE_SOURCE_DIR}/sensors)
+include_directories(${CMAKE_SOURCE_DIR}/fsw)
+include_directories(${CMAKE_SOURCE_DIR}/rendering)
+include_directories(${CMAKE_SOURCE_DIR}/rendering/primitives)
+include_directories(${CMAKE_SOURCE_DIR}/gui)
+include_directories(${CMAKE_SOURCE_DIR}/infrastructure)
+include_directories(${CMAKE_SOURCE_DIR}/data)
 
 # ImGui setup
 set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
@@ -41,28 +50,40 @@ find_package(glm REQUIRED)
 
 # Add executable
 add_executable(simulation
-    src/main.cpp
-    src/Simulation.cpp
-    src/GUI.cpp
-    src/CelestialBody.cpp
-    src/Universe.cpp
-    src/Camera.cpp
-    src/Sphere.cpp
-    src/Cube.cpp
-    src/Shader.cpp
-    src/Texture.cpp
-    src/Satellite.cpp
-    src/GroundStation.cpp
-    src/CommLink.cpp
-    src/LineRenderer.cpp
-    src/MathUtils.cpp
-    src/Renderer.cpp
-    src/Orbit.cpp
-    src/OBJMesh.cpp
+    # Core
+    core/main.cpp
+    core/Simulation.cpp
+
+    # Dynamics
+    dynamics/CelestialBody.cpp
+    dynamics/Universe.cpp
+    dynamics/Satellite.cpp
+    dynamics/Orbit.cpp
+    dynamics/MathUtils.cpp
+
+    # Sensors
+    sensors/IMU.cpp
 
     # Flight Software
-    src/StandardFSW.cpp
-    src/PassiveFSW.cpp
+    fsw/StandardFSW.cpp
+    fsw/PassiveFSW.cpp
+
+    # Rendering
+    rendering/Renderer.cpp
+    rendering/Shader.cpp
+    rendering/Texture.cpp
+    rendering/OBJMesh.cpp
+    rendering/primitives/Sphere.cpp
+    rendering/primitives/Cube.cpp
+    rendering/primitives/LineRenderer.cpp
+
+    # GUI
+    gui/GUI.cpp
+    gui/Camera.cpp
+
+    # Infrastructure
+    infrastructure/GroundStation.cpp
+    infrastructure/CommLink.cpp
 
     # ImGui core
     ${IMGUI_DIR}/imgui.cpp

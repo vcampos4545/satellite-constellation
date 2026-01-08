@@ -3,6 +3,7 @@
 #include "Orbit.h"
 #include "MathUtils.h"
 #include "GroundStation.h"
+#include "GroundStationData.h"
 #include "StandardFSW.h"
 #include "PassiveFSW.h"
 #include <cmath>
@@ -14,6 +15,18 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 /* ==================== EXAMPLES =================== */
+
+// Satellite orbit altitudes
+const double GEO_ALTITUDE = 35.786e6; // GEO altitude above Earth surface (meters)
+const double LEO_ALTITUDE = 550e3;    // Starlink altitude ~550 km
+const double GPS_ALTITUDE = 20.2e6;   // Altitude of GPS satellites
+
+// Molniya orbit parameters (highly elliptical orbit for high latitude coverage)
+const double MOLNIYA_SEMI_MAJOR_AXIS = 26.6e6; // Semi-major axis (meters from Earth center)
+const double MOLNIYA_ECCENTRICITY = 0.72;      // Eccentricity (highly elliptical)
+const double MOLNIYA_INCLINATION = 63.4;       // Inclination (degrees) - critical angle
+const double MOLNIYA_APOGEE_ALTITUDE = 39.8e6; // Apogee altitude above surface (~40,000 km)
+const double MOLNIYA_PERIGEE_ALTITUDE = 500e3; // Perigee altitude above surface (~500 km)
 
 void addGPSConstellation(Universe *universe)
 {
@@ -140,7 +153,7 @@ void addMolniyaConstellation(Universe *universe, int numSatellites)
     // Create satellite (position/velocity computed from orbit)
     universe->addSatelliteWithOrbit(
         orbit,
-        -2,  // planeId (-2 for Molniya - each in different plane)
+        -2, // planeId (-2 for Molniya - each in different plane)
         sat,
         satName);
   }
@@ -184,14 +197,14 @@ Universe::Universe()
   Orbit orbit{EARTH_RADIUS + 700e3, 0.0, 45.0, 0.0, 0.0, 0.0};
   addSatelliteWithOrbit(
       orbit,
-      4,
+      9,
       0,
       "Cubesat1U",
       SatelliteType::CUBESAT_1U);
   addSatelliteWithOrbit(
       orbit,
-      5,
-      0,
+      9,
+      1,
       "Cubesat2U",
       SatelliteType::CUBESAT_2U);
 
@@ -313,22 +326,6 @@ void Universe::addSatelliteWithOrbit(
 
   // Create satellite with computed position/velocity
   auto satellite = std::make_shared<Satellite>(orbit, position, velocity, planeId, indexInPlane, name, type);
-
-  // Enable ADCS with reaction wheels
-  satellite->enableReactionWheels(true);
-  satellite->setControlMode(AttitudeControlMode::TARGET_TRACKING);
-  satellite->setControlAlgorithm(ControlAlgorithm::PID);
-
-  // Assign flight software based on satellite type
-  // Cubesats get PassiveFSW, all others get StandardFSW
-  if (type == SatelliteType::CUBESAT_1U || type == SatelliteType::CUBESAT_2U)
-  {
-    satellite->setFlightSoftware(std::make_shared<PassiveFSW>());
-  }
-  else
-  {
-    satellite->setFlightSoftware(std::make_shared<StandardFSW>());
-  }
 
   satellites.push_back(satellite);
 }

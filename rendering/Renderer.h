@@ -4,6 +4,7 @@
 #include <GL/glew.h>
 #include <memory>
 #include <string>
+#include <map>
 #include "Universe.h"
 #include "Camera.h"
 #include "Shader.h"
@@ -67,9 +68,9 @@ private:
   Sphere sphereMesh;
   Cube cubeMesh;
   LineRenderer lineRenderer;
-  OBJMesh starlinkMesh;
-  OBJMesh cubesat1UMesh;
-  OBJMesh cubesat2UMesh;
+
+  // Dynamically loaded satellite models (key = model name from folder)
+  std::map<std::string, std::shared_ptr<OBJMesh>> satelliteModels;
 
   // Textures
   Texture earthTexture;
@@ -83,13 +84,12 @@ private:
   bool sunTextureLoaded;
   bool starsTextureLoaded;
 
-  // Mesh loaded flags
-  bool starlinkMeshLoaded;
-  bool cubesat1UMeshLoaded;
-  bool cubesat2UMeshLoaded;
-
   // Initialization state
   bool initialized;
+
+  // Helper functions
+  void loadAllModels();
+  std::string getSatelliteModelName(SatelliteType type) const;
 
   // ========== SATELLITE RENDER HELPER FUNCTIONS ==========
   // Individual satellite rendering functions for better code organization

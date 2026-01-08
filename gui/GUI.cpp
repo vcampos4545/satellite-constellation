@@ -184,6 +184,7 @@ void GUI::render()
             universe.getMoon()->getPosition(),
             500 // Number of prediction points
         );
+        sat->calculateFootprint(universe.getEarth()->getPosition(), 50);
       }
     }
   }

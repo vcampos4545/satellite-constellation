@@ -241,6 +241,11 @@ void Satellite::update(double deltaTime, const glm::dvec3 &earthCenter, double e
     orbitPath.push_back(position);
   }
 
+  // ========== SENSOR UPDATES ==========
+  // Update all sensors with current truth data (adds noise, bias, etc.)
+  imu.measureAngularVelocity(angularVelocity); // Update IMU with noisy measurement
+  imu.updateBias(deltaTime);                   // Update IMU bias (random walk)
+
   // ========== FLIGHT SOFTWARE EXECUTION ==========
   // Execute injected FSW if available, otherwise fall back to old hardcoded FSW
   executeFlightSoftware(deltaTime);

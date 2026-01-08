@@ -1,5 +1,6 @@
 #include "Renderer.h"
 #include <iostream>
+#include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -7,13 +8,14 @@
 #include "OBJMesh.h"
 #include "VisualizationState.h"
 
+namespace fs = std::filesystem;
+
 Renderer::Renderer()
     : sphereMesh(1.0f, 30, 30), // Unit sphere with 30x30 tessellation
       earthTextureLoaded(false),
       moonTextureLoaded(false),
       sunTextureLoaded(false),
       starsTextureLoaded(false),
-      starlinkMeshLoaded(false),
       initialized(false)
 {
 }
@@ -62,26 +64,8 @@ bool Renderer::initialize()
     std::cout << "Note: Stars texture not found. Using black background. Place a stars texture at 'textures/stars.jpg'" << std::endl;
   }
 
-  // Load Starlink satellite mesh
-  starlinkMeshLoaded = starlinkMesh.load("models/starlink/starlink.obj");
-  if (!starlinkMeshLoaded)
-  {
-    std::cout << "Note: Starlink mesh not found. Using simple geometry'" << std::endl;
-  }
-
-  // Load Starlink satellite mesh
-  cubesat1UMeshLoaded = cubesat1UMesh.load("models/cubesat1U/cubesat1U.obj");
-  if (!cubesat1UMeshLoaded)
-  {
-    std::cout << "Note: Cubesat1U mesh not found. Using simple geometry'" << std::endl;
-  }
-
-  // Load Starlink satellite mesh
-  cubesat2UMeshLoaded = cubesat2UMesh.load("models/cubesat2U/cubesat2U.obj");
-  if (!cubesat2UMeshLoaded)
-  {
-    std::cout << "Note: Cubesat2U mesh not found. Using simple geometry'" << std::endl;
-  }
+  // Dynamically load all satellite models from models/ directory
+  loadAllModels();
 
   initialized = true;
   return true;
@@ -351,12 +335,13 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
   sphereShader->setFloat("ambientStrength", 1.0f);
   sphereShader->setBool("isEmissive", true); // Satellites are self-illuminated
 
-  // Check satellite type for specialized mesh
+  // Check satellite type and look up corresponding model
   SatelliteType satType = satellite->getType();
+  std::string modelName = getSatelliteModelName(satType);
 
-  if ((satType == SatelliteType::STARLINK && starlinkMeshLoaded) ||
-      (satType == SatelliteType::CUBESAT_1U && cubesat1UMeshLoaded) ||
-      (satType == SatelliteType::CUBESAT_2U && cubesat2UMeshLoaded))
+  // Try to find and render the 3D model
+  auto modelIt = satelliteModels.find(modelName);
+  if (!modelName.empty() && modelIt != satelliteModels.end())
   {
     // Render 3D model with materials
     glm::mat4 meshModel = glm::mat4(1.0f);
@@ -365,12 +350,7 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
     meshModel = glm::scale(meshModel, glm::vec3(0.8e4f)); // ~8km scale
     sphereShader->setMat4("model", meshModel);
 
-    if (satType == SatelliteType::STARLINK)
-      starlinkMesh.draw(*sphereShader);
-    else if (satType == SatelliteType::CUBESAT_1U)
-      cubesat1UMesh.draw(*sphereShader);
-    else if (satType == SatelliteType::CUBESAT_2U)
-      cubesat2UMesh.draw(*sphereShader);
+    modelIt->second->draw(*sphereShader);
   }
   else
   {
@@ -508,4 +488,67 @@ void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int w
 
   // Restore original viewport
   glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+}
+
+// ========================================
+// MODEL LOADING HELPERS
+// ========================================
+
+void Renderer::loadAllModels()
+{
+  const std::string modelsDir = "models";
+
+  // Check if models directory exists
+  if (!fs::exists(modelsDir) || !fs::is_directory(modelsDir))
+  {
+    std::cout << "Note: models/ directory not found. Using simple geometry for all satellites." << std::endl;
+    return;
+  }
+
+  // Iterate through all subdirectories in models/
+  for (const auto &entry : fs::directory_iterator(modelsDir))
+  {
+    if (!entry.is_directory())
+      continue;
+
+    std::string folderName = entry.path().filename().string();
+    std::string objPath = entry.path().string() + "/" + folderName + ".obj";
+
+    // Try to load the .obj file with the same name as the folder
+    if (fs::exists(objPath))
+    {
+      auto mesh = std::make_shared<OBJMesh>();
+      if (mesh->load(objPath))
+      {
+        satelliteModels[folderName] = mesh;
+        std::cout << "Loaded satellite model: " << folderName << std::endl;
+      }
+      else
+      {
+        std::cout << "Warning: Failed to load model " << objPath << std::endl;
+      }
+    }
+    else
+    {
+      std::cout << "Note: Expected model file not found: " << objPath << std::endl;
+    }
+  }
+
+  std::cout << "Total satellite models loaded: " << satelliteModels.size() << std::endl;
+}
+
+std::string Renderer::getSatelliteModelName(SatelliteType type) const
+{
+  switch (type)
+  {
+  case SatelliteType::STARLINK:
+    return "starlink";
+  case SatelliteType::CUBESAT_1U:
+    return "cubesat1U";
+  case SatelliteType::CUBESAT_2U:
+    return "cubesat2U";
+  case SatelliteType::DEFAULT:
+  default:
+    return ""; // Empty string means no model (use fallback geometry)
+  }
 }

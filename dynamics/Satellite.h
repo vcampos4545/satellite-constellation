@@ -8,6 +8,7 @@
 #include <memory>
 #include "Orbit.h"
 #include "AlertSystem.h"
+#include "IMU.h"
 
 // Forward declaration
 class FlightSoftwareTask;
@@ -101,7 +102,7 @@ public:
   void setReflectivity(double cr) { reflectivity = cr; }
   void setInertiaTensor(const glm::dvec3 &inertia) { inertiaTensor = inertia; }
 
-  // Attitude getters
+  // Attitude getters (TRUTH - for visualization/debugging only)
   glm::dquat getQuaternion() const { return quaternion; }
   glm::dvec3 getAngularVelocity() const { return angularVelocity; }
   AttitudeControlMode getControlMode() const { return controlMode; }
@@ -110,6 +111,11 @@ public:
   glm::dvec3 getBodyXAxis() const { return quaternion * glm::dvec3(1.0, 0.0, 0.0); }
   glm::dvec3 getBodyYAxis() const { return quaternion * glm::dvec3(0.0, 1.0, 0.0); }
   glm::dvec3 getBodyZAxis() const { return quaternion * glm::dvec3(0.0, 0.0, 1.0); }
+
+  // ========== SENSOR ACCESS (FSW INTERFACE) ==========
+  // FSW should use these methods to get sensor data, NOT the truth getters above
+  IMU &getIMU() { return imu; }
+  const IMU &getIMU() const { return imu; }
 
   // Attitude setters
   void setQuaternion(const glm::dquat &q) { quaternion = glm::normalize(q); }
@@ -393,6 +399,10 @@ private:
   // Alert system
   AlertSystem alertSystem;
   double timeSinceLastAlertCheck = 0.0; // Track time between alert checks
+
+  // ========== SENSORS ==========
+  // Sensor models (FSW reads from these, not from truth)
+  IMU imu; // Inertial Measurement Unit (gyroscope)
 
   // ========== FLIGHT SOFTWARE ==========
   // Injected flight software task (executes autonomous behavior)
