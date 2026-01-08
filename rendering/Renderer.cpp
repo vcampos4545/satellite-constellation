@@ -187,7 +187,7 @@ void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body, b
 
   model = glm::scale(model, glm::vec3(body->getRadius()));
   sphereShader->setMat4("model", model);
-  sphereShader->setVec3("objectColor", body->getColor());
+  sphereShader->setVec3("objectColor", glm::vec3(0.0f, 0.0f, 1.0f)); // Blue default
 
   // Set lighting properties based on body type
   if (isSun)

@@ -214,17 +214,13 @@ Universe::Universe()
 void Universe::initializeEarth()
 {
   // ========== EARTH ==========
-  // Create Earth at origin
-  // Equatorial plane is horizontal (XY plane), rotation axis is Z-axis
-  // North pole points up (+Z), equator is in XY plane
-  glm::vec3 earthRotationAxis(0.0f, 0.0f, 1.0f);
+  // Create Earth at origin with spin axis as Z axis (ECI)
 
   earth = std::make_shared<CelestialBody>(
       glm::dvec3(0.0, 0.0, 0.0), // Position at origin
       EARTH_MASS,
       EARTH_RADIUS,
-      glm::vec3(0.2f, 0.4f, 0.8f), // Bluish color
-      earthRotationAxis,
+      glm::vec3(0.0f, 0.0f, 1.0f), // rotate around Z axis
       EARTH_ROTATION_ANGULAR_VELOCITY);
   bodies.push_back(earth);
 }
@@ -250,7 +246,6 @@ void Universe::initializeSun()
       sunPosition,
       SUN_MASS,
       SUN_RADIUS,
-      glm::vec3(1.0f, 0.9f, 0.6f), // Yellowish color
       glm::vec3(0.0f, 0.0f, 0.0f), // No rotation axis for simplicity
       0.0);                        // No rotation for simplicity
   bodies.push_back(sun);
@@ -305,7 +300,6 @@ void Universe::initializeMoon()
       moonPosition,
       MOON_MASS,
       MOON_RADIUS,
-      glm::vec3(0.7f, 0.7f, 0.7f), // Gray color
       moonRotationAxis,
       MOON_ROTATION_ANGULAR_VELOCITY);
   moon->setVelocity(moonVel);

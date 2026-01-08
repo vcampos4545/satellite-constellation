@@ -24,13 +24,20 @@ include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/external)
 include_directories(${CMAKE_SOURCE_DIR}/core)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics)
+include_directories(${CMAKE_SOURCE_DIR}/dynamics/integrators)
+include_directories(${CMAKE_SOURCE_DIR}/dynamics/gravityModels)
+include_directories(${CMAKE_SOURCE_DIR}/dynamics/environmentalModels)
 include_directories(${CMAKE_SOURCE_DIR}/sensors)
 include_directories(${CMAKE_SOURCE_DIR}/fsw)
+include_directories(${CMAKE_SOURCE_DIR}/fsw/adcs)
+include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
+include_directories(${CMAKE_SOURCE_DIR}/fsw/stationkeeping)
 include_directories(${CMAKE_SOURCE_DIR}/rendering)
 include_directories(${CMAKE_SOURCE_DIR}/rendering/primitives)
 include_directories(${CMAKE_SOURCE_DIR}/gui)
 include_directories(${CMAKE_SOURCE_DIR}/infrastructure)
 include_directories(${CMAKE_SOURCE_DIR}/data)
+include_directories(${CMAKE_SOURCE_DIR}/util)
 
 # ImGui setup
 set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
@@ -59,14 +66,32 @@ add_executable(simulation
     dynamics/Universe.cpp
     dynamics/Satellite.cpp
     dynamics/Orbit.cpp
-    dynamics/MathUtils.cpp
+
+    # Dynamics - Integrators
+    dynamics/integrators/RK4Integrator.cpp
+
+    # Dynamics - Gravity Models
+    dynamics/gravityModels/GravityModel.cpp
+
+    # Dynamics - Environmental Models
+    dynamics/environmentalModels/EnvironmentalModels.cpp
+
+    # Urils
+    util/MathUtils.cpp
 
     # Sensors
     sensors/IMU.cpp
 
-    # Flight Software
-    fsw/StandardFSW.cpp
-    fsw/PassiveFSW.cpp
+    # Flight Software - ADCS
+    fsw/adcs/ADCSController.cpp
+    fsw/adcs/StandardFSW.cpp
+    fsw/adcs/PassiveFSW.cpp
+
+    # Flight Software - Power
+    fsw/power/PowerManager.cpp
+
+    # Flight Software - Station Keeping
+    fsw/stationkeeping/StationKeepingController.cpp
 
     # Rendering
     rendering/Renderer.cpp
@@ -111,9 +136,9 @@ if (APPLE)
 endif()
 
 # Copy resources to build directory
-file(COPY shaders DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY textures DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY models DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY resources/shaders DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY resources/textures DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY resources/models DESTINATION ${CMAKE_BINARY_DIR})
 
 # Print build info
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")

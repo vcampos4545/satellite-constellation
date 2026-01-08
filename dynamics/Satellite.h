@@ -60,13 +60,6 @@ public:
   // Execute flight software (called internally by update())
   void executeFlightSoftware(double deltaTime);
 
-  // DEPRECATED: Old hardcoded flight software (kept for backward compatibility)
-  // Use setFlightSoftware() instead to inject custom FSW
-  void runFlightSoftware(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
-
-  // ADCS Control Loop (mirrors flight software architecture)
-  // PUBLIC: FSW implementations can call this to perform attitude control
-  void adcsControlLoop(double deltaTime, const glm::dvec3 &earthCenter, const glm::dvec3 &sunPosition);
 
   // Update target point for tracking mode (e.g., ground station position)
   void updateTargetTracking(const glm::dvec3 &targetPos) { targetPoint = targetPos; }
@@ -128,32 +121,10 @@ public:
   void setControlAlgorithm(ControlAlgorithm algo) { controlAlgorithm = algo; }
   ControlAlgorithm getControlAlgorithm() const { return controlAlgorithm; }
 
-  // Station keeping control
-  void enableStationKeeping(bool enable, double targetAltitude = 0.0);
+  // Station keeping control (now managed by FSW)
   double getPropellantMass() const { return propellantMass; }
   double getPropellantFraction() const { return propellantMass / propellantMassInitial; }
   bool hasPropellant() const { return propellantMass > 0.1; } // At least 100g remaining
-
-  // Maneuver state telemetry
-  int getManeuverStateInt() const { return static_cast<int>(maneuverState); }
-  const char *getManeuverStateString() const
-  {
-    switch (maneuverState)
-    {
-    case ManeuverState::IDLE:
-      return "IDLE";
-    case ManeuverState::BURN1_PENDING:
-      return "BURN1 PENDING";
-    case ManeuverState::COASTING:
-      return "COASTING";
-    case ManeuverState::BURN2_PENDING:
-      return "BURN2 PENDING";
-    default:
-      return "UNKNOWN";
-    }
-  }
-  double getBurn1DeltaV() const { return burn1DeltaV; }
-  double getBurn2DeltaV() const { return burn2DeltaV; }
 
   // Orbital elements calculation
   struct OrbitalElements
@@ -182,20 +153,84 @@ public:
   bool isInEclipse() const { return inEclipse; }
   bool hasSufficientPower() const { return batteryCharge > (batteryCapacity * 0.1); } // >10% battery
 
+  // Power system setters (for FSW to update hardware state)
+  void setBatteryCharge(double charge) { batteryCharge = charge; }
+  void setPowerGeneration(double power) { currentPowerGeneration = power; }
+  void setPowerConsumption(double power) { currentPowerConsumption = power; }
+  void setInEclipse(bool eclipse) { inEclipse = eclipse; }
+
+  // Power hardware parameters (for FSW algorithms)
+  double getSolarPanelArea() const { return solarPanelArea; }
+  double getSolarPanelEfficiency() const { return solarPanelEfficiency; }
+  double getSolarPanelDegradation() const { return solarPanelDegradation; }
+  double getBatteryChargeEfficiency() const { return batteryChargeEfficiency; }
+  double getBatteryDischargeEfficiency() const { return batteryDischargeEfficiency; }
+  double getBasePowerConsumption() const { return basePowerConsumption; }
+  double getReactionWheelPower() const { return reactionWheelPower; }
+  double getMagnetorquerPower() const { return magnetorquerPower; }
+  double getCMGPower() const { return cmgPower; }
+  double getThrusterPower() const { return thrusterPower; }
+  bool hasThrustersAvailable() const { return hasThrusters; }
+  int getNumCMGs() const { return numCMGs; }
+
+  // Physical properties (for FSW algorithms)
+  double getMass() const { return mass; }
+
   // ========== FSW ACCESSIBLE METHODS ==========
-  // Power management (FSW can call these)
-  void updatePowerSystem(double deltaTime, const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter);
-
-  // Station keeping (FSW can call these)
-  void performStationKeeping(double deltaTime, const glm::dvec3 &earthCenter);
+  // Station keeping hardware state (for FSW algorithms)
   bool getStationKeepingEnabled() const { return stationKeepingEnabled; }
+  void setStationKeepingEnabled(bool enabled) { stationKeepingEnabled = enabled; }
   double getTargetSemiMajorAxis() const { return targetSemiMajorAxis; }
+  void setTargetSemiMajorAxis(double semiMajorAxis) { targetSemiMajorAxis = semiMajorAxis; }
 
-  // PID control gains
+  // Station keeping hardware parameters (for FSW algorithms)
+  double getStationKeepingCheckInterval() const { return stationKeepingCheckInterval; }
+  double getStationKeepingDeadband() const { return stationKeepingDeadband; }
+  double getThrusterIsp() const { return thrusterIsp; }
+
+  // Hardware control methods (for FSW to command hardware)
+  void setVelocity(const glm::dvec3 &newVelocity) { velocity = newVelocity; }
+  void consumePropellant(double propellantUsed)
+  {
+    propellantMass -= propellantUsed;
+    mass -= propellantUsed;
+  }
+
+  // PID control gains (setters and getters for FSW)
   void setProportionalGain(double kp) { proportionalGain = kp; }
   void setIntegralGain(double ki) { integralGain = ki; }
   void setDerivativeGain(double kd) { derivativeGain = kd; }
   void resetIntegralError() { integralError = glm::dvec3(0.0); }
+  double getProportionalGain() const { return proportionalGain; }
+  double getIntegralGain() const { return integralGain; }
+  double getDerivativeGain() const { return derivativeGain; }
+  double getIntegralErrorMax() const { return integralErrorMax; }
+
+  // Control algorithm parameters getters (for FSW)
+  glm::dvec3 getInertiaTensor() const { return inertiaTensor; }
+  glm::dmat3 getLQRQ() const { return lqrQ; }
+  glm::dmat3 getLQRR() const { return lqrR; }
+  glm::dmat3 getMPCQ() const { return mpcQ; }
+  glm::dmat3 getMPCR() const { return mpcR; }
+  double getMPCTimestep() const { return mpcTimestep; }
+
+  // Target getters (for FSW)
+  glm::dquat getTargetQuaternion() const { return targetQuaternion; }
+  glm::dvec3 getTargetPoint() const { return targetPoint; }
+
+  // Actuator status getters (for FSW)
+  bool hasReactionWheelsAvailable() const { return hasReactionWheels; }
+  bool hasMagnetorquersAvailable() const { return hasMagnetorquers; }
+  bool hasCMGsAvailable() const { return hasCMGs; }
+  double getReactionWheelMaxTorque() const { return reactionWheelMaxTorque; }
+
+  // Actuator commanding (for FSW)
+  void commandReactionWheels(const glm::dvec3 &desiredTorque, double deltaTime);
+  void commandMagnetorquers(const glm::dvec3 &desiredTorque, const glm::dvec3 &magneticField);
+  void commandCMGs(const glm::dvec3 &desiredTorque, double deltaTime);
+
+  // Attitude dynamics (for FSW)
+  void propagateAttitudeDynamics(double deltaTime, const glm::dvec3 &externalTorque);
 
   // Auto-tune PID gains based on inertia and desired performance
   void autoTunePID(double settlingTime = 20.0, double dampingRatio = 0.9)
@@ -237,37 +272,15 @@ private:
   glm::dvec3 computeAttitudeError(const glm::dquat &currentAttitude, const glm::dquat &targetAttitude);
 
   // Step 4: Control Algorithms - compute desired control torque
-  glm::dvec3 computeControlTorque(const glm::dvec3 &attitudeError, double deltaTime);
-  glm::dvec3 computeControlTorquePID(const glm::dvec3 &attitudeError, double deltaTime);
-  glm::dvec3 computeControlTorqueLQR(const glm::dvec3 &attitudeError, double deltaTime);
-  glm::dvec3 computeControlTorqueMPC(const glm::dvec3 &attitudeError, double deltaTime);
-
-  // Step 5: Actuator allocation and commanding
-  void commandReactionWheels(const glm::dvec3 &desiredTorque, double deltaTime);
-  void commandMagnetorquers(const glm::dvec3 &desiredTorque, const glm::dvec3 &magneticField);
-  void commandCMGs(const glm::dvec3 &desiredTorque, double deltaTime);
-
-  // Step 6: Attitude dynamics propagation
-  void propagateAttitudeDynamics(double deltaTime, const glm::dvec3 &externalTorque);
 
   // ========== ORBITAL DYNAMICS METHODS ==========
   glm::dvec3 calculateAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter, double earthMass, const glm::dvec3 &sunPos, const glm::dvec3 &moonPos) const;
 
   // ========== PROPULSION METHODS ==========
-  // performStationKeeping is now public (declared above in FSW ACCESSIBLE METHODS)
   glm::dvec3 calculateThrustAcceleration(const glm::dvec3 &thrustDirection, double thrustMagnitude);
 
   // ========== POWER MANAGEMENT METHODS ==========
-  // updatePowerSystem is now public (declared above in FSW ACCESSIBLE METHODS)
-  double calculateSolarFlux(const glm::dvec3 &sunPosition) const;
-  bool checkEclipse(const glm::dvec3 &sunPosition, const glm::dvec3 &earthCenter) const;
-  double calculatePowerConsumption() const;
-  double calculatePowerGeneration(double solarFlux, const glm::dvec3 &sunDirection) const;
-
-  glm::dvec3 calculateGravitationalAcceleration(const glm::dvec3 &pos, const glm::dvec3 &bodyPos, double bodyMass) const;
-  glm::dvec3 calculateZonalHarmonicsAcceleration(const glm::dvec3 &pos, const glm::dvec3 &earthCenter, double earthMass) const;
-  glm::dvec3 calculateDragAcceleration(const glm::dvec3 &pos, const glm::dvec3 &vel, const glm::dvec3 &earthCenter) const;
-  glm::dvec3 calculateSolarRadiationPressure(const glm::dvec3 &pos, const glm::dvec3 &sunPos, const glm::dvec3 &earthCenter) const;
+  // Power management methods removed - now handled by PowerManager in FSW
 
   // Orbital state
   Orbit orbit;         // Orbit paramters
@@ -317,20 +330,7 @@ private:
   double targetSemiMajorAxis = 0.0;          // Target semi-major axis (m) - orbit to maintain
   double stationKeepingDeadband = 500.0;     // Altitude deadband (m) - don't burn unless outside this
   double stationKeepingCheckInterval = 60.0; // Check orbit every N seconds
-  double timeSinceLastStationKeepingCheck = 0.0;
-
-  // Multi-burn maneuver state for Hohmann-like transfers
-  enum class ManeuverState
-  {
-    IDLE,          // No active maneuver
-    BURN1_PENDING, // Waiting for periapsis to execute first burn
-    COASTING,      // Coasting to apoapsis after first burn
-    BURN2_PENDING  // Waiting for apoapsis to execute second burn
-  };
-  ManeuverState maneuverState = ManeuverState::IDLE;
-  double burn1DeltaV = 0.0;     // Delta-V for first burn (at periapsis)
-  double burn2DeltaV = 0.0;     // Delta-V for second burn (at apoapsis)
-  double lastTrueAnomaly = 0.0; // Track orbital position for burn timing
+  // Note: Maneuver state (burn planning, tracking) is now managed by StationKeepingController in FSW
 
   // Attitude control state
   AttitudeControlMode controlMode = AttitudeControlMode::NONE;
