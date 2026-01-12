@@ -2,7 +2,7 @@
 #include "Shader.h"
 #include <fstream>
 #include <sstream>
-#include <iostream>
+#include <cstdio>
 #include <cstring>
 #include <algorithm>
 #include <set>
@@ -34,7 +34,7 @@ bool OBJMesh::load(const std::string &filepath)
   std::ifstream file(filepath);
   if (!file.is_open())
   {
-    std::cerr << "Failed to open OBJ file: " << filepath << std::endl;
+    printf("\033[31mFailed to open OBJ file: %s\033[0m\n", filepath.c_str());
     return false;
   }
 
@@ -283,30 +283,30 @@ bool OBJMesh::load(const std::string &filepath)
   // Validate the mesh data
   if (vertices.empty() || indices.empty())
   {
-    std::cerr << "Error: OBJ mesh has no geometry data" << std::endl;
+    printf("\033[31mError: OBJ mesh has no geometry data\033[0m\n");
     return false;
   }
 
-  std::cout << "Loaded OBJ mesh: " << filepath << std::endl;
-  std::cout << "  Vertices: " << vertices.size() / 8 << std::endl;
-  std::cout << "  Indices: " << indices.size() << std::endl;
-  std::cout << "  Groups: " << groups.size() << std::endl;
-  std::cout << "  Materials: " << materials.size() << std::endl;
-  std::cout << "  VAO: " << VAO << ", VBO: " << VBO << ", EBO: " << EBO << std::endl;
+  printf("\033[32mLoaded OBJ mesh: %s\033[0m\n", filepath.c_str());
+  printf("  Vertices: %lu\n", vertices.size() / 8);
+  printf("  Indices: %lu\n", indices.size());
+  printf("  Groups: %lu\n", groups.size());
+  printf("  Materials: %lu\n", materials.size());
+  printf("  VAO: %u, VBO: %u, EBO: %u\n", VAO, VBO, EBO);
 
   return true;
 }
 
 bool OBJMesh::loadMTL(const std::string &filepath)
 {
-  std::cout << "Attempting to load MTL file: " << filepath << std::endl;
+  printf("Attempting to load MTL file: %s\n", filepath.c_str());
   std::ifstream file(filepath);
   if (!file.is_open())
   {
-    std::cerr << "Failed to open MTL file: " << filepath << std::endl;
+    printf("\033[31mFailed to open MTL file: %s\033[0m\n", filepath.c_str());
     return false;
   }
-  std::cout << "MTL file opened successfully: " << filepath << std::endl;
+  printf("\033[32mMTL file opened successfully: %s\033[0m\n", filepath.c_str());
 
   Material currentMaterial;
   std::string currentMaterialName;
@@ -361,13 +361,14 @@ bool OBJMesh::loadMTL(const std::string &filepath)
 
   file.close();
 
-  std::cout << "Loaded " << materials.size() << " materials from MTL file" << std::endl;
+  printf("\033[32mLoaded %lu materials from MTL file\033[0m\n", materials.size());
   for (const auto &matPair : materials)
   {
-    std::cout << "  Material: " << matPair.first << " - Diffuse RGB("
-              << matPair.second.diffuse.r << ", "
-              << matPair.second.diffuse.g << ", "
-              << matPair.second.diffuse.b << ")" << std::endl;
+    printf("  Material: %s - Diffuse RGB(%.5f, %.5f, %.5f)\n",
+           matPair.first.c_str(),
+           matPair.second.diffuse.r,
+           matPair.second.diffuse.g,
+           matPair.second.diffuse.b);
   }
 
   // Load textures for all materials
@@ -387,11 +388,11 @@ bool OBJMesh::loadMTL(const std::string &filepath)
       if (texture->load(texturePath))
       {
         mat.diffuseTexture = texture;
-        std::cout << "  Loaded texture: " << texturePath << std::endl;
+        printf("  \033[32mLoaded texture: %s\033[0m\n", texturePath.c_str());
       }
       else
       {
-        std::cerr << "  Failed to load texture: " << texturePath << std::endl;
+        printf("  \033[31mFailed to load texture: %s\033[0m\n", texturePath.c_str());
       }
     }
   }
@@ -412,10 +413,10 @@ void OBJMesh::draw(Shader &shader) const
   static std::set<const OBJMesh *> debugPrintedMeshes;
   if (debugPrintedMeshes.find(this) == debugPrintedMeshes.end())
   {
-    std::cout << "Drawing OBJ mesh with " << groups.size() << " groups and " << materials.size() << " materials" << std::endl;
+    printf("Drawing OBJ mesh with %lu groups and %lu materials\n", groups.size(), materials.size());
     for (const auto &group : groups)
     {
-      std::cout << "  Group '" << group.name << "' uses material '" << group.materialName << "'" << std::endl;
+      printf("  Group '%s' uses material '%s'\n", group.name.c_str(), group.materialName.c_str());
     }
     debugPrintedMeshes.insert(this);
   }
@@ -458,7 +459,8 @@ void OBJMesh::draw(Shader &shader) const
         // Material not found - use default gray color
         shader.setBool("useTexture", false);
         shader.setVec3("objectColor", glm::vec3(0.5f, 0.5f, 0.5f));
-        std::cerr << "Warning: Material '" << group.materialName << "' not found for group '" << group.name << "'" << std::endl;
+        printf("\033[33mWarning: Material '%s' not found for group '%s'\033[0m\n",
+               group.materialName.c_str(), group.name.c_str());
       }
     }
     else

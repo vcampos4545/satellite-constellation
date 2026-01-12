@@ -354,7 +354,7 @@ void Satellite::calculatePredictedOrbit(const glm::dvec3 &earthCenter, double ea
     return calculateAcceleration(pos, vel, earthCenter, earthMass, sunPosition, moonPosition);
   };
 
-  for (int i = 1; i < numPoints; ++i)
+  for (int i = 1; i <= numPoints; ++i)
   {
     // Use modular RK4 integrator
     RK4Integrator::integratePositionVelocity(pred_pos, pred_vel, dt, accelFunc);

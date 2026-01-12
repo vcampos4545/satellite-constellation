@@ -178,6 +178,7 @@ void addCities(Universe *universe)
 /* ================== UNIVERSE IMPLEMENTATION =================== */
 
 Universe::Universe()
+    : simulationTime(0.0)
 {
   /* DO NOT CHANGE */
   initializeEarth();
@@ -186,27 +187,53 @@ Universe::Universe()
 
   /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 
-  addGPSConstellation(this);
-  addGEOConstellation(this, 3);         // 3 GEO satellites
-  addStarlinkConstellation(this, 8, 4); // 8 planes, 4 sats per plane
-  addReflectConstellation(this, 1);     // 1 SSO satellite
-  addMolniyaConstellation(this, 3);     // 3 satellites for continuous coverage
+  // addGPSConstellation(this);
+  // addGEOConstellation(this, 3);         // 3 GEO satellites
+  // addStarlinkConstellation(this, 8, 4); // 8 planes, 4 sats per plane
+  // addReflectConstellation(this, 1);     // 1 SSO satellite
+  // addMolniyaConstellation(this, 3);     // 3 satellites for continuous coverage
   addCities(this);
 
   // Add cubesats
-  Orbit orbit{EARTH_RADIUS + 700e3, 0.0, 45.0, 0.0, 0.0, 0.0};
+  Orbit orbit1{EARTH_RADIUS + 700e3, 0.0, PI / 4, 0.0, 0.0, 0.0};
   addSatelliteWithOrbit(
-      orbit,
+      orbit1,
       9,
       0,
       "Cubesat1U",
       SatelliteType::CUBESAT_1U);
+  Orbit orbit2{EARTH_RADIUS + 700e3, 0.0, 0.0, 0.0, 0.0, 0.0};
   addSatelliteWithOrbit(
-      orbit,
+      orbit2,
       9,
       1,
       "Cubesat2U",
       SatelliteType::CUBESAT_2U);
+
+  Orbit orbit3{EARTH_RADIUS + 700e3, 0.0, PI / 2, 0.0, 0.0, 0.0};
+  addSatelliteWithOrbit(
+      orbit3,
+      9,
+      1,
+      "satellite",
+      SatelliteType::DEFAULT);
+
+  Orbit orbit4{EARTH_RADIUS + 700e3, 0.0, PI / 6, 0.0, 0.0, 0.0};
+  addSatelliteWithOrbit(
+      orbit4,
+      9,
+      1,
+      "starlink-1",
+      SatelliteType::STARLINK);
+
+  // Testing SSO precession
+  Orbit orbit5{EARTH_RADIUS + 550e3, 0.0, glm::radians(98.0f), -PI / 2.0, 0.0, 0.0};
+  addSatelliteWithOrbit(
+      orbit5,
+      9,
+      1,
+      "sso-1",
+      SatelliteType::DEFAULT);
 
   /*=============== CUSTOMIZE SIMULATION HERE ===============*/
 }
@@ -282,11 +309,15 @@ void Universe::initializeMoon()
   double mu = G * EARTH_MASS;
   double moonVelocity = sqrt(mu * (2.0 / periapsis - 1.0 / MOON_SEMI_MAJOR_AXIS));
 
-  // Velocity perpendicular to position, in the orbital plane (mainly Y direction)
+  // Velocity must be perpendicular to position AND in the inclined orbital plane
+  // Position is at (periapsis*cos(θ), 0, periapsis*sin(θ)) where θ = totalInclination
+  // Perpendicular velocity in the orbital plane: (-sin(θ), cos(θ), 0) rotated by inclination
+  // For orbit in XZ plane inclined from XY, velocity at periapsis points mainly in Y
+  // but with components to keep it in the inclined plane
   glm::dvec3 moonVel(
-      0.0,
-      moonVelocity,
-      0.0);
+      0.0,          // X component (retrograde due to inclination)
+      moonVelocity, // Y component (main orbital motion)
+      0.0);         // Z component (stays in orbital plane)
 
   // Moon's rotation axis is tilted 6.68° from its orbital plane normal
   double moonAxisTilt = glm::radians(totalInclination - MOON_AXIAL_TILT);
@@ -341,6 +372,14 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     // Take the smaller of: remaining time or max physics step
     double stepTime = std::min(remainingTime, maxPhysicsStep);
 
+    // ========== UPDATE SIMULATION TIME ==========
+    simulationTime += stepTime;
+
+    // ========== UPDATE SUN POSITION KINEMATICALLY ==========
+    // Sun moves along Earth's orbit (inverted) - no physics simulation
+    // This keeps Earth at (0,0,0) while maintaining correct relative motion
+    updateSunPosition();
+
     // ========== UPDATE ALL CELESTIAL BODIES ==========
     // Each celestial body updates its rotation and (if physics enabled) orbital position
     for (auto &body : bodies)
@@ -390,4 +429,114 @@ glm::dvec3 Universe::getObjectPosition(void *object) const
   }
 
   return glm::dvec3(0.0);
+}
+
+void Universe::updateSunPosition()
+{
+  /**
+   * Update Sun's position kinematically using Earth's orbital elements (inverted)
+   *
+   * In reality, Earth orbits the Sun. In our Earth-centered frame, we need the Sun
+   * to appear to orbit Earth with the same relative motion. This is achieved by
+   * calculating where Earth would be in a heliocentric orbit, then placing the Sun
+   * at the negative of that position.
+   *
+   * Uses Kepler's equations to compute elliptical orbit with:
+   * - Semi-major axis: 1 AU (149,597,870,700 m)
+   * - Eccentricity: 0.0167 (slightly elliptical)
+   * - Orbital period: 365.25 days
+   * - Inclination: 23.44° (ecliptic obliquity)
+   *
+   * This gives us:
+   * - Perihelion in January (~147 million km)
+   * - Aphelion in July (~152 million km)
+   * - Correct seasonal lighting variations
+   */
+
+  // ========== EARTH'S ORBITAL ELEMENTS (HELIOCENTRIC) ==========
+  const double a = AU;                      // Semi-major axis: 1 AU
+  const double e = 0.0167;                  // Eccentricity (Earth's orbit is nearly circular)
+  const double period = 365.25 * 86400.0;   // Orbital period: 365.25 days in seconds
+  const double obliquity = glm::radians(ECLIPTIC_OBLIQUITY); // Tilt of Earth's axis: 23.44°
+
+  // ========== MEAN MOTION ==========
+  // Angular velocity of Earth's orbit (radians per second)
+  double n = 2.0 * PI / period;
+
+  // ========== MEAN ANOMALY ==========
+  // Angle that increases uniformly with time
+  // Start at summer solstice (approximately M ≈ π/2)
+  // At t=0: Northern hemisphere summer, Sun appears north of equator
+  double M = n * simulationTime + PI / 2.0;
+
+  // ========== SOLVE KEPLER'S EQUATION FOR ECCENTRIC ANOMALY ==========
+  // Kepler's equation: M = E - e*sin(E)
+  // Solved iteratively using fixed-point iteration (converges quickly for small e)
+  double E = M; // Initial guess
+  for (int i = 0; i < 10; i++)
+  {
+    E = M + e * sin(E); // Fixed-point iteration
+  }
+
+  // ========== CALCULATE TRUE ANOMALY ==========
+  // True anomaly is the actual angle in the orbit from perihelion
+  // Formula: tan(ν/2) = sqrt((1+e)/(1-e)) * tan(E/2)
+  double nu = 2.0 * atan2(sqrt(1.0 + e) * sin(E / 2.0), sqrt(1.0 - e) * cos(E / 2.0));
+
+  // ========== CALCULATE ORBITAL RADIUS ==========
+  // Distance from Sun (heliocentric orbit)
+  // Using orbit equation: r = a(1-e²)/(1+e*cos(ν))
+  double r = a * (1.0 - e * e) / (1.0 + e * cos(nu));
+
+  // ========== POSITION IN ORBITAL PLANE (ECLIPTIC) ==========
+  // Ecliptic plane: plane of Earth's orbit around Sun
+  // X-axis points to vernal equinox, Z-axis perpendicular to ecliptic
+  double x_ecliptic = r * cos(nu); // X component in ecliptic
+  double y_ecliptic = r * sin(nu); // Y component in ecliptic
+
+  // ========== TRANSFORM FROM ECLIPTIC TO EQUATORIAL COORDINATES ==========
+  // Equatorial plane is tilted by obliquity (23.44°) relative to ecliptic
+  // Rotation around X-axis by obliquity angle
+  glm::dvec3 earthPosHeliocentric(
+      x_ecliptic,                    // X stays the same
+      y_ecliptic * cos(obliquity),   // Y component (in equatorial plane)
+      y_ecliptic * sin(obliquity)    // Z component (perpendicular to equator)
+  );
+
+  // ========== INVERT POSITION FOR GEOCENTRIC FRAME ==========
+  // In geocentric (Earth-centered) frame, Sun is at negative of Earth's heliocentric position
+  // If Earth is at (+X, +Y, +Z) from Sun, then Sun is at (-X, -Y, -Z) from Earth
+  glm::dvec3 sunPosGeocentric = -earthPosHeliocentric;
+
+  // ========== CALCULATE ORBITAL VELOCITY ==========
+  // Use vis-viva equation: v² = μ(2/r - 1/a)
+  // where μ = G*M_sun for heliocentric orbit
+  double mu = G * SUN_MASS;
+  double v_mag = sqrt(mu * (2.0 / r - 1.0 / a));
+
+  // Velocity is perpendicular to radius vector in the orbital plane
+  // In perifocal coordinates: v_x = -(μ/h)*sin(ν), v_y = (μ/h)*(e+cos(ν))
+  // where h = sqrt(μ*a*(1-e²)) is specific angular momentum
+  double h = sqrt(mu * a * (1.0 - e * e));
+  double vx_ecliptic = -(mu / h) * sin(nu);
+  double vy_ecliptic = (mu / h) * (e + cos(nu));
+
+  // Transform velocity to equatorial coordinates
+  glm::dvec3 earthVelHeliocentric(
+      vx_ecliptic,
+      vy_ecliptic * cos(obliquity),
+      vy_ecliptic * sin(obliquity));
+
+  // ========== INVERT VELOCITY FOR GEOCENTRIC FRAME ==========
+  // Sun's geocentric velocity is negative of Earth's heliocentric velocity
+  glm::dvec3 sunVelGeocentric = -earthVelHeliocentric;
+
+  // ========== UPDATE SUN'S POSITION AND VELOCITY ==========
+  sun->setPosition(sunPosGeocentric);
+  sun->setVelocity(sunVelGeocentric);
+
+  // Note: Sun's physics is disabled (enablePhysics = false)
+  // It moves purely kinematically based on this calculation
+  // This is the correct approach since Earth's gravity is far too weak to
+  // actually make the Sun orbit - we're just maintaining the relative motion
 }

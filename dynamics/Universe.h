@@ -41,12 +41,18 @@ public:
   glm::dvec3 getObjectPosition(void *object) const;
 
 private:
+  // Update Sun's position kinematically (Earth's orbit inverted)
+  void updateSunPosition();
+
   std::vector<std::shared_ptr<CelestialBody>> bodies;
   std::vector<std::shared_ptr<Satellite>> satellites;
   std::vector<std::shared_ptr<GroundStation>> groundStations;
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;
   std::shared_ptr<CelestialBody> moon;
+
+  // Simulation time tracking for Sun's kinematic orbit
+  double simulationTime;
 };
 
 #endif // UNIVERSE_H

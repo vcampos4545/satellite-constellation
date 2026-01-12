@@ -1,7 +1,7 @@
 #include "Simulation.h"
 #include "GUI.h"
 #include <GLFW/glfw3.h>
-#include <iostream>
+#include <cstdio>
 
 Simulation::Simulation(bool headless)
     : m_headless(headless),
@@ -11,12 +11,12 @@ Simulation::Simulation(bool headless)
       m_universe(),
       m_gui(nullptr)
 {
-  std::cout << "Simulation: Universe initialized" << std::endl;
+  printf("\033[32mSimulation: Universe initialized\033[0m\n");
   if (!m_headless)
   {
-    std::cout << "Simulation: Creating GUI..." << std::endl;
+    printf("\033[32mSimulation: Creating GUI...\033[0m\n");
     m_gui = std::make_unique<GUI>(1000, 800, this);
-    std::cout << "Simulation: GUI created successfully" << std::endl;
+    printf("\033[32mSimulation: GUI created successfully\033[0m\n");
   }
 }
 
@@ -27,7 +27,7 @@ Simulation::~Simulation()
 
 void Simulation::run()
 {
-  std::cout << "\n=== SIMULATION STARTED ===" << std::endl;
+  printf("\n\033[32m=== SIMULATION STARTED ===\033[0m\n");
 
   float lastTime = m_headless ? 0.0f : glfwGetTime();
 
@@ -58,7 +58,7 @@ void Simulation::run()
     // For now, headless will run indefinitely until Ctrl+C
   }
 
-  std::cout << "\n=== SIMULATION ENDED ===" << std::endl;
+  printf("\n\033[32m=== SIMULATION ENDED ===\033[0m\n");
 }
 
 void Simulation::update(float deltaTime)

@@ -1,5 +1,5 @@
 #include "Texture.h"
-#include <iostream>
+#include <cstdio>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../external/stb_image.h"
@@ -25,8 +25,8 @@ bool Texture::load(const std::string &path)
 
   if (!data)
   {
-    std::cerr << "Failed to load texture: " << path << std::endl;
-    std::cerr << "STB Image Error: " << stbi_failure_reason() << std::endl;
+    printf("\033[31mFailed to load texture: %s\033[0m\n", path.c_str());
+    printf("\033[31mSTB Image Error: %s\033[0m\n", stbi_failure_reason());
     return false;
   }
 
@@ -40,7 +40,7 @@ bool Texture::load(const std::string &path)
     format = GL_RGBA;
   else
   {
-    std::cerr << "Unsupported number of channels: " << channels << std::endl;
+    printf("\033[31mUnsupported number of channels: %d\033[0m\n", channels);
     stbi_image_free(data);
     return false;
   }
@@ -63,7 +63,8 @@ bool Texture::load(const std::string &path)
   stbi_image_free(data);
 
   loaded = true;
-  std::cout << "Successfully loaded texture: " << path << " (" << width << "x" << height << ", " << channels << " channels)" << std::endl;
+  printf("\033[32mSuccessfully loaded texture: %s (%dx%d, %d channels)\033[0m\n",
+         path.c_str(), width, height, channels);
 
   return true;
 }

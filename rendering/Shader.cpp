@@ -1,7 +1,7 @@
 #include "Shader.h"
 #include <fstream>
 #include <sstream>
-#include <iostream>
+#include <cstdio>
 #include <glm/gtc/type_ptr.hpp>
 
 Shader::Shader(const char *vertexPath, const char *fragmentPath)
@@ -94,8 +94,8 @@ std::string Shader::loadShaderSource(const char *path)
   }
   catch (std::ifstream::failure &e)
   {
-    std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << path << std::endl;
-    std::cerr << "Error: " << e.what() << std::endl;
+    printf("\033[31mERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: %s\033[0m\n", path);
+    printf("\033[31mError: %s\033[0m\n", e.what());
   }
 
   return code;
@@ -112,8 +112,8 @@ void Shader::checkCompileErrors(GLuint shader, const std::string &type)
     if (!success)
     {
       glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-      std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n"
-                << infoLog << std::endl;
+      printf("\033[31mERROR::SHADER_COMPILATION_ERROR of type: %s\n%s\033[0m\n",
+             type.c_str(), infoLog);
     }
   }
   else
@@ -122,8 +122,8 @@ void Shader::checkCompileErrors(GLuint shader, const std::string &type)
     if (!success)
     {
       glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-      std::cerr << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n"
-                << infoLog << std::endl;
+      printf("\033[31mERROR::PROGRAM_LINKING_ERROR of type: %s\n%s\033[0m\n",
+             type.c_str(), infoLog);
     }
   }
 }

@@ -347,46 +347,58 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
     glm::mat4 meshModel = glm::mat4(1.0f);
     meshModel = glm::translate(meshModel, satPos);
     meshModel = meshModel * attitudeMatrix;
-    meshModel = glm::scale(meshModel, glm::vec3(0.8e4f)); // ~8km scale
+    meshModel = glm::scale(meshModel, glm::vec3(1e4f)); // ~8km scale
     sphereShader->setMat4("model", meshModel);
 
     modelIt->second->draw(*sphereShader);
   }
   else
   {
+
+    auto model = satelliteModels.find("satellite");
+
+    // Render 3D model with materials
+    glm::mat4 meshModel = glm::mat4(1.0f);
+    meshModel = glm::translate(meshModel, satPos);
+    meshModel = meshModel * attitudeMatrix;
+    meshModel = glm::scale(meshModel, glm::vec3(5.0f));
+    sphereShader->setMat4("model", meshModel);
+
+    model->second->draw(*sphereShader);
+
     // Fallback: Simple geometry (cube + solar panels)
-    glm::vec3 brightColor = glm::vec3(0.8f, 0.8f, 0.8f); // Default gray color
-    sphereShader->setVec3("objectColor", brightColor);
+    // glm::vec3 brightColor = glm::vec3(0.8f, 0.8f, 0.8f); // Default gray color
+    // sphereShader->setVec3("objectColor", brightColor);
 
-    // Central body
-    glm::mat4 bodyModel = glm::mat4(1.0f);
-    bodyModel = glm::translate(bodyModel, satPos);
-    bodyModel = bodyModel * attitudeMatrix;
-    bodyModel = glm::scale(bodyModel, glm::vec3(1.6e4f, 2.4e4f, 1.6e4f));
-    sphereShader->setMat4("model", bodyModel);
-    cubeMesh.draw();
+    // // Central body
+    // glm::mat4 bodyModel = glm::mat4(1.0f);
+    // bodyModel = glm::translate(bodyModel, satPos);
+    // bodyModel = bodyModel * attitudeMatrix;
+    // bodyModel = glm::scale(bodyModel, glm::vec3(1.6e4f, 2.4e4f, 1.6e4f));
+    // sphereShader->setMat4("model", bodyModel);
+    // cubeMesh.draw();
 
-    // Solar panels (blue color)
-    glm::vec3 panelColor = glm::vec3(0.4f, 0.6f, 1.0f);
-    sphereShader->setVec3("objectColor", panelColor);
+    // // Solar panels (blue color)
+    // glm::vec3 panelColor = glm::vec3(0.4f, 0.6f, 1.0f);
+    // sphereShader->setVec3("objectColor", panelColor);
 
-    // Left panel
-    glm::mat4 leftPanelModel = glm::mat4(1.0f);
-    leftPanelModel = glm::translate(leftPanelModel, satPos);
-    leftPanelModel = leftPanelModel * attitudeMatrix;
-    leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-3.0e4f, 0.0f, 0.0f));
-    leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
-    sphereShader->setMat4("model", leftPanelModel);
-    cubeMesh.draw();
+    // // Left panel
+    // glm::mat4 leftPanelModel = glm::mat4(1.0f);
+    // leftPanelModel = glm::translate(leftPanelModel, satPos);
+    // leftPanelModel = leftPanelModel * attitudeMatrix;
+    // leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-3.0e4f, 0.0f, 0.0f));
+    // leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
+    // sphereShader->setMat4("model", leftPanelModel);
+    // cubeMesh.draw();
 
-    // Right panel
-    glm::mat4 rightPanelModel = glm::mat4(1.0f);
-    rightPanelModel = glm::translate(rightPanelModel, satPos);
-    rightPanelModel = rightPanelModel * attitudeMatrix;
-    rightPanelModel = glm::translate(rightPanelModel, glm::vec3(3.0e4f, 0.0f, 0.0f));
-    rightPanelModel = glm::scale(rightPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
-    sphereShader->setMat4("model", rightPanelModel);
-    cubeMesh.draw();
+    // // Right panel
+    // glm::mat4 rightPanelModel = glm::mat4(1.0f);
+    // rightPanelModel = glm::translate(rightPanelModel, satPos);
+    // rightPanelModel = rightPanelModel * attitudeMatrix;
+    // rightPanelModel = glm::translate(rightPanelModel, glm::vec3(3.0e4f, 0.0f, 0.0f));
+    // rightPanelModel = glm::scale(rightPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
+    // sphereShader->setMat4("model", rightPanelModel);
+    // cubeMesh.draw();
   }
 }
 

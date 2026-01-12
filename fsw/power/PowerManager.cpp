@@ -1,7 +1,7 @@
 #include "PowerManager.h"
 #include "Satellite.h"
 #include "Constants.h"
-#include <iostream>
+#include <cstdio>
 
 void PowerManager::updatePowerSystem(Satellite *satellite, double deltaTime,
                                      const glm::dvec3 &sunPosition,
@@ -168,7 +168,7 @@ void PowerManager::manageBattery(Satellite *satellite, double deltaTime,
       if (satellite->getControlMode() != AttitudeControlMode::NONE)
       {
         // Switch to detumble mode to conserve power
-        std::cout << satellite->getName() << ": Low power - switching to DETUMBLE mode\n";
+        printf("\033[33m%s: Low power - switching to DETUMBLE mode\033[0m\n", satellite->getName().c_str());
         satellite->setControlMode(AttitudeControlMode::DETUMBLE);
       }
     }

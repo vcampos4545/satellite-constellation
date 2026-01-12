@@ -10,7 +10,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
-#include <iostream>
+#include <cstdio>
 #include <map>
 #include <cmath>
 #include <limits>
@@ -35,17 +35,17 @@ GUI::GUI(int screenWidth, int screenHeight, Simulation *simulation)
       m_currentTheta(0.0f),
       m_currentPhi(0.0f)
 {
-  std::cout << "GUI: Starting initialization..." << std::endl;
+  printf("\033[32mGUI: Starting initialization...\033[0m\n");
   initWindow(screenWidth, screenHeight);
-  std::cout << "GUI: Window initialized" << std::endl;
+  printf("\033[32mGUI: Window initialized\033[0m\n");
   initCamera(screenWidth, screenHeight);
-  std::cout << "GUI: Camera initialized" << std::endl;
+  printf("\033[32mGUI: Camera initialized\033[0m\n");
   initRenderer();
-  std::cout << "GUI: Renderer initialized" << std::endl;
+  printf("\033[32mGUI: Renderer initialized\033[0m\n");
   initImGui();
-  std::cout << "GUI: ImGui initialized" << std::endl;
+  printf("\033[32mGUI: ImGui initialized\033[0m\n");
   setupCallbacks();
-  std::cout << "GUI: Callbacks setup complete" << std::endl;
+  printf("\033[32mGUI: Callbacks setup complete\033[0m\n");
 }
 
 GUI::~GUI()
@@ -68,7 +68,7 @@ void GUI::initWindow(int width, int height)
   // Initialize GLFW
   if (!glfwInit())
   {
-    std::cerr << "Failed to initialize GLFW" << std::endl;
+    printf("\033[31mFailed to initialize GLFW\033[0m\n");
     throw std::runtime_error("Failed to initialize GLFW");
   }
 
@@ -83,7 +83,7 @@ void GUI::initWindow(int width, int height)
   m_window = glfwCreateWindow(width, height, "Constellation Simulation", nullptr, nullptr);
   if (!m_window)
   {
-    std::cerr << "Failed to create GLFW window" << std::endl;
+    printf("\033[31mFailed to create GLFW window\033[0m\n");
     glfwTerminate();
     throw std::runtime_error("Failed to create GLFW window");
   }
@@ -94,7 +94,7 @@ void GUI::initWindow(int width, int height)
   // Initialize GLEW
   if (glewInit() != GLEW_OK)
   {
-    std::cerr << "Failed to initialize GLEW" << std::endl;
+    printf("\033[31mFailed to initialize GLEW\033[0m\n");
     throw std::runtime_error("Failed to initialize GLEW");
   }
 
@@ -177,14 +177,8 @@ void GUI::render()
       if (sat)
       {
         Universe &universe = m_simulation->getUniverse();
-        sat->calculatePredictedOrbit(
-            universe.getEarth()->getPosition(),
-            EARTH_MASS,
-            universe.getSun()->getPosition(),
-            universe.getMoon()->getPosition(),
-            500 // Number of prediction points
-        );
-        sat->calculateFootprint(universe.getEarth()->getPosition(), 50);
+
+        // sat->calculateFootprint(universe.getEarth()->getPosition(), 50);
       }
     }
   }
@@ -1021,6 +1015,13 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
           if (closestType == SelectedObject::Type::Satellite)
           {
             Satellite *sat = static_cast<Satellite *>(closestObject);
+            sat->calculatePredictedOrbit(
+                universe.getEarth()->getPosition(),
+                EARTH_MASS,
+                universe.getSun()->getPosition(),
+                universe.getMoon()->getPosition(),
+                500 // Number of prediction points
+            );
             std::cout << "Selected satellite: " << sat->getName() << std::endl;
           }
           else if (closestType == SelectedObject::Type::CelestialBody)

@@ -1,7 +1,7 @@
 #include "StationKeepingController.h"
 #include "Satellite.h"
 #include "Constants.h"
-#include <iostream>
+#include <cstdio>
 #include <cmath>
 
 void StationKeepingController::performStationKeeping(Satellite *satellite, double deltaTime,
@@ -76,12 +76,12 @@ void StationKeepingController::performStationKeeping(Satellite *satellite, doubl
         if (fabs(burn2DeltaV) > 0.1) // If second burn needed
         {
           maneuverState = ManeuverState::COASTING;
-          std::cout << satellite->getName() << ": Coasting to apoapsis...\n";
+          printf("%s: Coasting to apoapsis...\n", satellite->getName().c_str());
         }
         else
         {
           maneuverState = ManeuverState::IDLE; // Single burn complete
-          std::cout << satellite->getName() << ": Single burn maneuver complete\n";
+          printf("\033[32m%s: Single burn maneuver complete\033[0m\n", satellite->getName().c_str());
         }
       }
     }
@@ -104,7 +104,7 @@ void StationKeepingController::performStationKeeping(Satellite *satellite, doubl
       if (success)
       {
         maneuverState = ManeuverState::IDLE; // Maneuver complete
-        std::cout << satellite->getName() << ": Two-burn maneuver complete - orbit circularized\n";
+        printf("\033[32m%s: Two-burn maneuver complete - orbit circularized\033[0m\n", satellite->getName().c_str());
       }
     }
   }
@@ -220,7 +220,7 @@ void StationKeepingController::planManeuver(const OrbitalElements &orbit,
     burn2DeltaV = 0.0;
 
     maneuverState = ManeuverState::BURN1_PENDING;
-    std::cout << "StationKeeping: Single burn planned, ΔV = " << burn1DeltaV << " m/s\n";
+    printf("StationKeeping: Single burn planned, ΔV = %.2f m/s\n", burn1DeltaV);
   }
   else
   {
@@ -244,8 +244,8 @@ void StationKeepingController::planManeuver(const OrbitalElements &orbit,
     burn2DeltaV = v_circular_target - v_apo_transfer;
 
     maneuverState = ManeuverState::BURN1_PENDING;
-    std::cout << "StationKeeping: Two-burn maneuver planned, e=" << orbit.eccentricity
-              << ", ΔV1=" << burn1DeltaV << " m/s, ΔV2=" << burn2DeltaV << " m/s\n";
+    printf("StationKeeping: Two-burn maneuver planned, e=%.6f, ΔV1=%.2f m/s, ΔV2=%.2f m/s\n",
+           orbit.eccentricity, burn1DeltaV, burn2DeltaV);
   }
 }
 
@@ -254,7 +254,7 @@ bool StationKeepingController::executeBurn(Satellite *satellite, double deltaV)
   // Check if satellite has propellant
   if (!satellite->hasPropellant())
   {
-    std::cout << satellite->getName() << ": Cannot execute burn - no propellant remaining\n";
+    printf("\033[31m%s: Cannot execute burn - no propellant remaining\033[0m\n", satellite->getName().c_str());
     return false;
   }
 
@@ -281,7 +281,7 @@ bool StationKeepingController::executeBurn(Satellite *satellite, double deltaV)
     // Not enough propellant - use what we have
     propellantUsed = propellantMass;
     deltaV = exhaustVelocity * log(mass / (mass - propellantUsed));
-    std::cout << satellite->getName() << ": Insufficient propellant - partial burn executed\n";
+    printf("\033[33m%s: Insufficient propellant - partial burn executed\033[0m\n", satellite->getName().c_str());
   }
 
   // Apply delta-V
@@ -291,8 +291,8 @@ bool StationKeepingController::executeBurn(Satellite *satellite, double deltaV)
   // Consume propellant and update mass
   satellite->consumePropellant(propellantUsed);
 
-  std::cout << satellite->getName() << ": Burn executed, ΔV = " << deltaV
-            << " m/s, propellant used = " << propellantUsed << " kg\n";
+  printf("\033[32m%s: Burn executed, ΔV = %.2f m/s, propellant used = %.2f kg\033[0m\n",
+         satellite->getName().c_str(), deltaV, propellantUsed);
 
   return true;
 }
