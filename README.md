@@ -14,6 +14,7 @@ A satellite constellation simulation.
 - **GLFW3**: Window and input management
 - **GLEW**: OpenGL extension loading
 - **GLM**: OpenGL Mathematics library
+- **ImGui**: UI rendering (automatically fetched via CMake)
 
 ### macOS Installation (Homebrew)
 
@@ -54,6 +55,20 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 # Release build (default, optimized)
 cmake -DCMAKE_BUILD_TYPE=Release ..
+```
+
+### ImGui (Dear ImGui)
+
+The project uses [Dear ImGui](https://github.com/ocornut/imgui) for the user interface. **No manual installation is required** - CMake automatically downloads ImGui from GitHub during the build process using FetchContent.
+
+If you need to use a specific version of ImGui, you can modify the `GIT_TAG` in `CMakeLists.txt`:
+
+```cmake
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.7  # Change this to your desired version
+)
 ```
 
 ## Coordinate System

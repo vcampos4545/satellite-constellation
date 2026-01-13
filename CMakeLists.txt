@@ -39,8 +39,17 @@ include_directories(${CMAKE_SOURCE_DIR}/infrastructure)
 include_directories(${CMAKE_SOURCE_DIR}/data)
 include_directories(${CMAKE_SOURCE_DIR}/util)
 
+# Fetch ImGui automatically from GitHub
+include(FetchContent)
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.7  # Specify the version you want
+)
+FetchContent_MakeAvailable(imgui)
+
 # ImGui setup
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+set(IMGUI_DIR ${imgui_SOURCE_DIR})
 include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
 # Find GLEW
