@@ -793,63 +793,22 @@ void GUI::renderUI()
     if (ImGui::CollapsingHeader("Satellites", ImGuiTreeNodeFlags_DefaultOpen))
     {
       auto &satellites = universe.getSatellites();
-
-      std::map<int, std::vector<std::shared_ptr<Satellite>>> satellitesByPlane;
       for (const auto &sat : satellites)
       {
-        satellitesByPlane[sat->getPlaneId()].push_back(sat);
-      }
 
-      for (auto &planePair : satellitesByPlane)
-      {
-        int planeId = planePair.first;
-        auto &planeSats = planePair.second;
+        std::string satLabel = sat->getName();
+        double altitude = (glm::length(sat->getPosition()) - EARTH_RADIUS) / 1e3;
+        satLabel += " (" + std::to_string((int)altitude) + " km)";
 
-        std::string planeLabel;
-        if (planeId == -4)
-          planeLabel = "GEO Constellation";
-        else if (planeId == -3)
-          planeLabel = "Reflect Constellation";
-        else if (planeId == -2)
-          planeLabel = "Molniya Constellation";
-        else if (planeId >= 0 && !planeSats.empty())
+        if (ImGui::Selectable(satLabel.c_str()))
         {
-          std::string satName = planeSats[0]->getName();
-          if (satName.find("GPS") != std::string::npos)
-            planeLabel = "GPS Plane " + std::to_string(planeId);
-          else if (satName.find("Starlink") != std::string::npos)
-            planeLabel = "Starlink Plane " + std::to_string(planeId);
-          else
-            planeLabel = "Plane " + std::to_string(planeId);
-        }
-        else
-          planeLabel = "Plane " + std::to_string(planeId);
-
-        if (ImGui::TreeNode(planeLabel.c_str()))
-        {
-          for (const auto &sat : planeSats)
-          {
-            std::string satLabel = sat->getName();
-            double altitude = (glm::length(sat->getPosition()) - EARTH_RADIUS) / 1e3;
-            satLabel += " (" + std::to_string((int)altitude) + " km)";
-
-            if (ImGui::Selectable(satLabel.c_str()))
-            {
-              m_selectedObject.type = SelectedObject::Type::Satellite;
-              m_selectedObject.object = sat.get();
-              m_camera.setTarget(glm::vec3(sat->getPosition()));
-              std::cout << "Selected: " << sat->getName() << std::endl;
-            }
-          }
-          ImGui::TreePop();
+          m_selectedObject.type = SelectedObject::Type::Satellite;
+          m_selectedObject.object = sat.get();
+          m_camera.setTarget(glm::vec3(sat->getPosition()));
+          std::cout << "Selected: " << sat->getName() << std::endl;
         }
       }
     }
-
-    ImGui::Spacing();
-    ImGui::SeparatorText("Global Visualization");
-    ImGui::Checkbox("Show All Orbit Paths", &m_vizState.showAllOrbitPaths);
-    ImGui::Checkbox("Show All Attitude Vectors", &m_vizState.showAllAttitudeVectors);
 
     ImGui::End();
   }
