@@ -35,7 +35,6 @@ include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/stationkeeping)
 include_directories(${CMAKE_SOURCE_DIR}/rendering)
 include_directories(${CMAKE_SOURCE_DIR}/rendering/primitives)
-include_directories(${CMAKE_SOURCE_DIR}/infrastructure)
 include_directories(${CMAKE_SOURCE_DIR}/data)
 include_directories(${CMAKE_SOURCE_DIR}/util)
 
@@ -71,9 +70,10 @@ add_executable(simulation
     core/Simulation.cpp
 
     # Dynamics
-    dynamics/bodies/CelestialBody.cpp
-    dynamics/Universe.cpp
     dynamics/bodies/Satellite.cpp
+    dynamics/bodies/CelestialBody.cpp
+    dynamics/bodies/GroundStation.cpp
+    dynamics/Universe.cpp
     dynamics/Orbit.cpp
 
     # Dynamics - Integrators
@@ -101,7 +101,7 @@ add_executable(simulation
     rendering/Renderer.cpp
     rendering/Shader.cpp
     rendering/Texture.cpp
-    rendering/OBJMesh.cpp
+    rendering/loaders/OBJMesh.cpp
     rendering/primitives/Sphere.cpp
     rendering/primitives/Cube.cpp
     rendering/primitives/LineRenderer.cpp
@@ -109,9 +109,6 @@ add_executable(simulation
     # GUI
     rendering/GUI.cpp
     rendering/Camera.cpp
-
-    # Infrastructure
-    infrastructure/GroundStation.cpp
 
     # ImGui core
     ${IMGUI_DIR}/imgui.cpp
