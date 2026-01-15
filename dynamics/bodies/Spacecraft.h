@@ -1,0 +1,168 @@
+#ifndef SPACECRAFT_H
+#define SPACECRAFT_H
+
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <memory>
+#include <vector>
+#include <unordered_map>
+#include <string>
+#include "Component.h"
+
+/**
+ * Spacecraft Class
+ *
+ * Generic spacecraft with component-based architecture.
+ * Manages core physics state (position, velocity, attitude) and components
+ * (actuators, sensors, power systems, etc.)
+ *
+ * Design Philosophy:
+ * - Spacecraft owns physics state (position, velocity, attitude, mass, inertia)
+ * - Components provide specific functionality (sensors, actuators, power)
+ * - Components affect spacecraft through force/torque accumulation
+ * - Clean separation: Spacecraft = physics, Components = hardware
+ */
+class Spacecraft
+{
+public:
+  Spacecraft();
+  Spacecraft(const glm::dvec3 &position, const glm::dvec3 &velocity);
+  ~Spacecraft();
+
+  // ========== PHYSICS STATE GETTERS ==========
+  glm::dvec3 getPosition() const { return position; }
+  glm::dvec3 getVelocity() const { return velocity; }
+  glm::dquat getAttitude() const { return quaternion; }
+  glm::dvec3 getAngularVelocity() const { return angularVelocity; }
+  glm::dmat3 getInertiaMatrix() const { return inertiaMatrix; }
+  double getMass() const { return mass; }
+
+  // ========== PHYSICS STATE SETTERS ==========
+  void setPosition(const glm::dvec3 &pos) { position = pos; }
+  void setVelocity(const glm::dvec3 &vel) { velocity = vel; }
+  void setAttitude(const glm::dquat &quat) { quaternion = glm::normalize(quat); }
+  void setAngularVelocity(const glm::dvec3 &omega) { angularVelocity = omega; }
+  void setInertiaMatrix(const glm::dmat3 &inertia) { inertiaMatrix = inertia; }
+  void setMass(double m) { mass = m; }
+
+  // ========== COMPONENT MANAGEMENT ==========
+
+  /**
+   * Add component to spacecraft
+   * @param name Unique name for component (e.g., "RW+X", "Panel1")
+   * @param args Constructor arguments for component type T
+   * @return Pointer to created component
+   */
+  template <typename T, typename... Args>
+  T *addComponent(const std::string &name, Args &&...args)
+  {
+    auto comp = std::make_unique<T>(std::forward<Args>(args)...);
+    comp->name = name;
+    T *ptr = comp.get();
+
+    components.push_back(std::move(comp));
+    componentLookup[name] = ptr;
+
+    return ptr;
+  }
+
+  /**
+   * Get component by name
+   * @param name Component name
+   * @return Pointer to component or nullptr if not found
+   */
+  Component *getComponent(const std::string &name);
+
+  /**
+   * Get component by name with type checking
+   * @param name Component name
+   * @return Typed pointer to component or nullptr if not found or wrong type
+   */
+  template <typename T>
+  T *getComponent(const std::string &name)
+  {
+    auto it = componentLookup.find(name);
+    if (it != componentLookup.end())
+    {
+      return dynamic_cast<T *>(it->second);
+    }
+    return nullptr;
+  }
+
+  /**
+   * Get all components of a specific type
+   * @return Vector of pointers to components of type T
+   */
+  template <typename T>
+  std::vector<T *> getComponents()
+  {
+    std::vector<T *> result;
+    for (auto &comp : components)
+    {
+      T *typed = dynamic_cast<T *>(comp.get());
+      if (typed)
+      {
+        result.push_back(typed);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Remove component by name
+   * @param name Component name
+   * @return True if component was found and removed
+   */
+  bool removeComponent(const std::string &name);
+
+  /**
+   * Get number of components
+   */
+  size_t getComponentCount() const { return components.size(); }
+
+  // ========== PHYSICS UPDATE ==========
+
+  /**
+   * Update spacecraft physics and all components
+   * @param deltaTime Time step in seconds
+   */
+  void update(double deltaTime);
+
+  /**
+   * Aggregate forces from all actuator components
+   * @return Total force in body frame (Newtons)
+   */
+  glm::dvec3 aggregateForces() const;
+
+  /**
+   * Aggregate torques from all actuator components
+   * @return Total torque in body frame (Newton-meters)
+   */
+  glm::dvec3 aggregateTorques() const;
+
+  // ========== UTILITY ==========
+
+  /**
+   * Get body axes in inertial frame
+   */
+  glm::dvec3 getBodyXAxis() const { return quaternion * glm::dvec3(1.0, 0.0, 0.0); }
+  glm::dvec3 getBodyYAxis() const { return quaternion * glm::dvec3(0.0, 1.0, 0.0); }
+  glm::dvec3 getBodyZAxis() const { return quaternion * glm::dvec3(0.0, 0.0, 1.0); }
+
+private:
+  // ========== PHYSICS STATE ==========
+  glm::dvec3 position;        // Position in inertial frame (meters)
+  glm::dvec3 velocity;        // Velocity in inertial frame (m/s)
+  glm::dquat quaternion;      // Attitude quaternion (body to inertial)
+  glm::dvec3 angularVelocity; // Angular velocity in body frame (rad/s)
+
+  // ========== PHYSICAL PROPERTIES ==========
+  double mass;                // Total mass (kg)
+  glm::dmat3 inertiaMatrix;   // Moment of inertia matrix (kg·m²)
+
+  // ========== COMPONENT SYSTEM ==========
+  std::vector<std::unique_ptr<Component>> components; // Owned components
+  std::unordered_map<std::string, Component *> componentLookup; // Fast name lookup
+};
+
+#endif // SPACECRAFT_H
