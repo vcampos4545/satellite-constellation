@@ -26,9 +26,9 @@ include_directories(${CMAKE_SOURCE_DIR}/core)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/bodies)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/integrators)
+include_directories(${CMAKE_SOURCE_DIR}/dynamics/sensors)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/gravityModels)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/environmentalModels)
-include_directories(${CMAKE_SOURCE_DIR}/sensors)
 include_directories(${CMAKE_SOURCE_DIR}/fsw)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/adcs)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
@@ -90,7 +90,8 @@ add_executable(simulation
     util/MathUtils.cpp
 
     # Sensors
-    sensors/IMU.cpp
+    dynamics/sensors/IMU.cpp
+
 
     # Flight Software - ADCS
     fsw/adcs/ADCSController.cpp
@@ -112,7 +113,6 @@ add_executable(simulation
 
     # Infrastructure
     infrastructure/GroundStation.cpp
-    infrastructure/CommLink.cpp
 
     # ImGui core
     ${IMGUI_DIR}/imgui.cpp
@@ -140,7 +140,7 @@ if (APPLE)
 endif()
 
 # Copy resources to build directory
-file(COPY resources/shaders DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY rendering/shaders DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY resources/textures DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY resources/models DESTINATION ${CMAKE_BINARY_DIR})
 
