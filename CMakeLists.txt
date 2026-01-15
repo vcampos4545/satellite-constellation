@@ -93,6 +93,8 @@ add_executable(simulation
     # Sensors
     dynamics/sensors/IMU.cpp
 
+    # Components
+    dynamics/components/SolarPanel.cpp
 
     # Flight Software - ADCS
     fsw/adcs/ADCSController.cpp

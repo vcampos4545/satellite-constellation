@@ -20,6 +20,14 @@ const double J2 = 1.08263e-3; // Oblateness (equatorial bulge) - dominant term
 const double J3 = -2.54e-6;   // Pear-shaped asymmetry (North-South)
 const double J4 = -1.62e-6;   // Higher-order oblateness correction
 
+// Solar panel thermal properties (typical values for spacecraft solar panels)
+const double STEFAN_BOLTZMANN = 5.67e-8;           // W/(m²·K⁴) - Stefan-Boltzmann constant
+const double SOLAR_PANEL_EMISSIVITY = 0.85;        // Back surface emissivity
+const double SOLAR_PANEL_ABSORPTIVITY = 0.92;     // Solar absorptivity
+const double SOLAR_PANEL_TEMP_COEFF = -0.004;     // Efficiency change per °C
+const double SOLAR_PANEL_REF_TEMP = 298.15;       // Reference temp (25°C in Kelvin)
+const double SOLAR_PANEL_THERMAL_MASS = 100.0;    // J/K (typical for 1kg panel)
+
 // Sun constants
 const double SUN_MASS = 1.989e30; // kg
 const double SUN_RADIUS = 6.96e8; // meters
