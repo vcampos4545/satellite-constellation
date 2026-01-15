@@ -35,6 +35,7 @@ include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/stationkeeping)
 include_directories(${CMAKE_SOURCE_DIR}/rendering)
 include_directories(${CMAKE_SOURCE_DIR}/rendering/primitives)
+include_directories(${CMAKE_SOURCE_DIR}/rendering/loaders)
 include_directories(${CMAKE_SOURCE_DIR}/data)
 include_directories(${CMAKE_SOURCE_DIR}/util)
 
