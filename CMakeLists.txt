@@ -96,6 +96,11 @@ add_executable(simulation
 
     # Scenarios
     scenarios/SSOTestScenario.cpp
+    scenarios/GPSScenario.cpp
+    scenarios/StarlinkScenario.cpp
+    scenarios/GEOScenario.cpp
+    scenarios/MolniyaScenario.cpp
+
     # Flight Software - ADCS
     fsw/adcs/ADCSController.cpp
     fsw/adcs/StandardFSW.cpp
