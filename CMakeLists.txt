@@ -35,7 +35,6 @@ include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/stationkeeping)
 include_directories(${CMAKE_SOURCE_DIR}/rendering)
 include_directories(${CMAKE_SOURCE_DIR}/rendering/primitives)
-include_directories(${CMAKE_SOURCE_DIR}/gui)
 include_directories(${CMAKE_SOURCE_DIR}/infrastructure)
 include_directories(${CMAKE_SOURCE_DIR}/data)
 include_directories(${CMAKE_SOURCE_DIR}/util)
@@ -108,8 +107,8 @@ add_executable(simulation
     rendering/primitives/LineRenderer.cpp
 
     # GUI
-    gui/GUI.cpp
-    gui/Camera.cpp
+    rendering/GUI.cpp
+    rendering/Camera.cpp
 
     # Infrastructure
     infrastructure/GroundStation.cpp
