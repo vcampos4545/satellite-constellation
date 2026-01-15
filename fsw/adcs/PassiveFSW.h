@@ -3,7 +3,6 @@
 
 #include "FlightSoftwareTask.h"
 #include "ADCSController.h"
-#include "../power/PowerManager.h"
 
 /**
  * Passive Flight Software
@@ -31,7 +30,6 @@ public:
   void reset() override
   {
     adcsController = ADCSController();
-    powerManager = PowerManager();
   }
 
 private:
@@ -39,7 +37,6 @@ private:
 
   // FSW Controllers
   ADCSController adcsController;
-  PowerManager powerManager;
 };
 
 #endif // PASSIVE_FSW_H

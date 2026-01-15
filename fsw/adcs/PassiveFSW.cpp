@@ -22,10 +22,6 @@ void PassiveFSW::execute(Satellite *satellite, double deltaTime)
   const IMU &imu = satellite->getIMU();
   glm::dvec3 measuredAngularVelocity = imu.getLastMeasurement();
 
-  // ========== POWER MANAGEMENT ==========
-  // Always monitor power (critical for survival)
-  powerManager.updatePowerSystem(satellite, deltaTime, sunPosition, earthCenter);
-
   // ========== DETUMBLING ==========
   // Only activate ADCS if spinning too fast (conserve power)
   // Use IMU measurement (noisy) to determine if we're spinning

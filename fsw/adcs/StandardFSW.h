@@ -3,8 +3,6 @@
 
 #include "FlightSoftwareTask.h"
 #include "ADCSController.h"
-#include "../power/PowerManager.h"
-#include "../stationkeeping/StationKeepingController.h"
 
 /**
  * Standard Flight Software
@@ -30,8 +28,6 @@ public:
   {
     timeSinceLastCheck = 0.0;
     adcsController = ADCSController();
-    powerManager = PowerManager();
-    stationKeepingController = StationKeepingController();
   }
 
 private:
@@ -40,8 +36,6 @@ private:
 
   // FSW Controllers
   ADCSController adcsController;
-  PowerManager powerManager;
-  StationKeepingController stationKeepingController;
 };
 
 #endif // STANDARD_FSW_H

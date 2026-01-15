@@ -97,12 +97,6 @@ add_executable(simulation
     fsw/adcs/StandardFSW.cpp
     fsw/adcs/PassiveFSW.cpp
 
-    # Flight Software - Power
-    fsw/power/PowerManager.cpp
-
-    # Flight Software - Station Keeping
-    fsw/stationkeeping/StationKeepingController.cpp
-
     # Rendering
     rendering/Renderer.cpp
     rendering/Shader.cpp

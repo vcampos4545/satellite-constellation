@@ -26,20 +26,9 @@ void StandardFSW::execute(Satellite *satellite, double deltaTime)
   // Sun position from ephemeris (simplified - real FSW would compute from time)
   glm::dvec3 sunPosition(1.496e11, 0.0, 0.0); // 1 AU in +X direction
 
-  // ========== POWER MANAGEMENT ==========
-  // Monitor solar power, battery charge, manage power modes
-  powerManager.updatePowerSystem(satellite, deltaTime, sunPosition, earthCenter);
-
   // ========== ATTITUDE DETERMINATION AND CONTROL ==========
   // ADCS uses sensor data (IMU measurements) for control
   adcsController.executeControlLoop(satellite, deltaTime, earthCenter, sunPosition);
-
-  // ========== STATION KEEPING ==========
-  // Orbital maintenance: counteract drag, maintain target altitude
-  if (satellite->getStationKeepingEnabled())
-  {
-    stationKeepingController.performStationKeeping(satellite, deltaTime, earthCenter);
-  }
 
   // ========== HOUSEKEEPING ==========
   // Monitor health, check limits, generate telemetry alerts
