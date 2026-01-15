@@ -24,6 +24,7 @@ include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/external)
 include_directories(${CMAKE_SOURCE_DIR}/core)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics)
+include_directories(${CMAKE_SOURCE_DIR}/dynamics/bodies)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/integrators)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/gravityModels)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/environmentalModels)
@@ -71,9 +72,9 @@ add_executable(simulation
     core/Simulation.cpp
 
     # Dynamics
-    dynamics/CelestialBody.cpp
+    dynamics/bodies/CelestialBody.cpp
     dynamics/Universe.cpp
-    dynamics/Satellite.cpp
+    dynamics/bodies/Satellite.cpp
     dynamics/Orbit.cpp
 
     # Dynamics - Integrators

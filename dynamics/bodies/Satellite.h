@@ -9,6 +9,7 @@
 #include "Orbit.h"
 #include "AlertSystem.h"
 #include "IMU.h"
+#include "SolarPanel.h"
 
 // Forward declaration
 class FlightSoftwareTask;
@@ -172,6 +173,14 @@ public:
   double getThrusterPower() const { return thrusterPower; }
   bool hasThrustersAvailable() const { return hasThrusters; }
   int getNumCMGs() const { return numCMGs; }
+
+  // Solar panel component access (FSW interface)
+  std::vector<SolarPanel> &getSolarPanels() { return solarPanels; }
+  const std::vector<SolarPanel> &getSolarPanels() const { return solarPanels; }
+  void addSolarPanel(const SolarPanel &panel) { solarPanels.push_back(panel); }
+  void clearSolarPanels() { solarPanels.clear(); }
+  bool usesComponentBasedSolarPanels() const { return !solarPanels.empty(); }
+  void setUseLegacySolarPanelModel(bool legacy) { useLegacySolarPanelModel = legacy; }
 
   // Physical properties (for FSW algorithms)
   double getMass() const { return mass; }
@@ -403,6 +412,10 @@ private:
   // ========== SENSORS ==========
   // Sensor models (FSW reads from these, not from truth)
   IMU imu; // Inertial Measurement Unit (gyroscope)
+
+  // ========== SOLAR PANELS (COMPONENT-BASED) ==========
+  std::vector<SolarPanel> solarPanels;     // Component-based solar panels
+  bool useLegacySolarPanelModel = true;    // Backward compatibility flag
 
   // ========== FLIGHT SOFTWARE ==========
   // Injected flight software task (executes autonomous behavior)
