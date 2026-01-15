@@ -7,7 +7,6 @@
 #include <string>
 #include <memory>
 #include "Orbit.h"
-#include "AlertSystem.h"
 #include "IMU.h"
 #include "SolarPanel.h"
 
@@ -17,10 +16,10 @@ class FlightSoftwareTask;
 // Satellite types for rendering and identification
 enum class SatelliteType
 {
-  DEFAULT,      // Generic satellite with simple geometry
-  CUBESAT_1U,   // 1U CubeSat (10cm cube)
-  CUBESAT_2U,   // 2U CubeSat (10x10x20cm)
-  STARLINK      // SpaceX Starlink satellite
+  DEFAULT,    // Generic satellite with simple geometry
+  CUBESAT_1U, // 1U CubeSat (10cm cube)
+  CUBESAT_2U, // 2U CubeSat (10x10x20cm)
+  STARLINK    // SpaceX Starlink satellite
 };
 
 // Attitude control modes
@@ -60,7 +59,6 @@ public:
 
   // Execute flight software (called internally by update())
   void executeFlightSoftware(double deltaTime);
-
 
   // Update target point for tracking mode (e.g., ground station position)
   void updateTargetTracking(const glm::dvec3 &targetPos) { targetPoint = targetPos; }
@@ -262,11 +260,6 @@ public:
     resetIntegralError();
   }
 
-  // Alert system
-  AlertSystem &getAlertSystem() { return alertSystem; }
-  const AlertSystem &getAlertSystem() const { return alertSystem; }
-  void checkTelemetryLimits(); // Check all telemetry against limits and generate alerts
-
 private:
   // ========== ADCS FLIGHT SOFTWARE METHODS ==========
   // These methods mirror the structure of actual satellite ADCS code
@@ -400,22 +393,18 @@ private:
   int orbitPathSaveInterval = 10;             // Save position every N update iterations
   int updateIterationCount = 0;               // Counter for update iterations
 
-  int planeId;      // Orbital plane identifier
-  int indexInPlane; // Index of this satellite within its plane
-  std::string name; // Satellite name/identifier
+  int planeId;        // Orbital plane identifier
+  int indexInPlane;   // Index of this satellite within its plane
+  std::string name;   // Satellite name/identifier
   SatelliteType type; // Satellite type for rendering and identification
-
-  // Alert system
-  AlertSystem alertSystem;
-  double timeSinceLastAlertCheck = 0.0; // Track time between alert checks
 
   // ========== SENSORS ==========
   // Sensor models (FSW reads from these, not from truth)
   IMU imu; // Inertial Measurement Unit (gyroscope)
 
   // ========== SOLAR PANELS (COMPONENT-BASED) ==========
-  std::vector<SolarPanel> solarPanels;     // Component-based solar panels
-  bool useLegacySolarPanelModel = true;    // Backward compatibility flag
+  std::vector<SolarPanel> solarPanels;  // Component-based solar panels
+  bool useLegacySolarPanelModel = true; // Backward compatibility flag
 
   // ========== FLIGHT SOFTWARE ==========
   // Injected flight software task (executes autonomous behavior)

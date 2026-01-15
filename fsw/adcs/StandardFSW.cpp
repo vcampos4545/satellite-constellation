@@ -30,15 +30,6 @@ void StandardFSW::execute(Satellite *satellite, double deltaTime)
   // ADCS uses sensor data (IMU measurements) for control
   adcsController.executeControlLoop(satellite, deltaTime, earthCenter, sunPosition);
 
-  // ========== HOUSEKEEPING ==========
-  // Monitor health, check limits, generate telemetry alerts
-  timeSinceLastCheck += deltaTime;
-  if (timeSinceLastCheck >= 1.0) // Check every 1 second
-  {
-    satellite->checkTelemetryLimits();
-    timeSinceLastCheck = 0.0;
-  }
-
   // Future FSW tasks:
   // - Navigation filter (Kalman filter) to estimate attitude/orbit from sensors
   // - Thermal management
