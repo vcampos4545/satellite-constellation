@@ -38,6 +38,7 @@ include_directories(${CMAKE_SOURCE_DIR}/rendering/primitives)
 include_directories(${CMAKE_SOURCE_DIR}/rendering/loaders)
 include_directories(${CMAKE_SOURCE_DIR}/data)
 include_directories(${CMAKE_SOURCE_DIR}/util)
+include_directories(${CMAKE_SOURCE_DIR}/scenarios)
 
 # Fetch ImGui automatically from GitHub
 include(FetchContent)
@@ -93,6 +94,8 @@ add_executable(simulation
     dynamics/components/IMU.cpp
     dynamics/components/SolarPanel.cpp
 
+    # Scenarios
+    scenarios/SSOTestScenario.cpp
     # Flight Software - ADCS
     fsw/adcs/ADCSController.cpp
     fsw/adcs/StandardFSW.cpp
