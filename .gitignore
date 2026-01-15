@@ -37,9 +37,9 @@ textures/*.bmp
 !textures/README.md
 
 # Model files (usually large, keep only README)
-models/**/*
-!models/**/README.md
-!models/README.md
+resources/models/**/*
+!resources/models/**/README.md
+!resources/models/README.md
 
 # External libraries (if downloaded)
 external/lib/
