@@ -26,6 +26,7 @@ Makefile
 # Object files
 *.o
 *.obj
+*.mtl
 *.a
 *.lib
 
@@ -34,6 +35,11 @@ textures/*.jpg
 textures/*.png
 textures/*.bmp
 !textures/README.md
+
+# Model files (usually large, keep only README)
+models/**/*
+!models/**/README.md
+!models/README.md
 
 # External libraries (if downloaded)
 external/lib/
