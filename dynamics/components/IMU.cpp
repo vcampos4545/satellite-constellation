@@ -2,7 +2,24 @@
 #include <cmath>
 
 IMU::IMU()
-    : whiteNoiseStdDev(0.001),    // 0.001 rad/s = ~0.06 deg/s (typical MEMS gyro)
+    : Sensor(), // Initialize base class with no name
+      whiteNoiseStdDev(0.001),    // 0.001 rad/s = ~0.06 deg/s (typical MEMS gyro)
+      biasStability(0.0005),       // 0.0005 rad/s = ~0.03 deg/s constant bias
+      biasRandomWalk(0.0001),      // Bias drift
+      bias(0.0, 0.0, 0.0),
+      lastMeasurement(0.0, 0.0, 0.0),
+      rng(std::random_device{}()),
+      whiteNoiseDist(0.0, 1.0)
+{
+  // Initialize bias with random offset (within bias stability)
+  bias.x = whiteNoiseDist(rng) * biasStability;
+  bias.y = whiteNoiseDist(rng) * biasStability;
+  bias.z = whiteNoiseDist(rng) * biasStability;
+}
+
+IMU::IMU(const std::string &name)
+    : Sensor(name), // Initialize base class with name
+      whiteNoiseStdDev(0.001),    // 0.001 rad/s = ~0.06 deg/s (typical MEMS gyro)
       biasStability(0.0005),       // 0.0005 rad/s = ~0.03 deg/s constant bias
       biasRandomWalk(0.0001),      // Bias drift
       bias(0.0, 0.0, 0.0),

@@ -27,7 +27,6 @@ include_directories(${CMAKE_SOURCE_DIR}/dynamics)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/bodies)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/components)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/integrators)
-include_directories(${CMAKE_SOURCE_DIR}/dynamics/sensors)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/gravityModels)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/environmentalModels)
 include_directories(${CMAKE_SOURCE_DIR}/fsw)
@@ -90,10 +89,8 @@ add_executable(simulation
     # Urils
     util/MathUtils.cpp
 
-    # Sensors
-    dynamics/sensors/IMU.cpp
-
     # Components
+    dynamics/components/IMU.cpp
     dynamics/components/SolarPanel.cpp
 
     # Flight Software - ADCS

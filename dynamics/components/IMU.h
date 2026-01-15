@@ -3,6 +3,7 @@
 
 #include <glm/glm.hpp>
 #include <random>
+#include "Component.h"
 
 /**
  * Inertial Measurement Unit (IMU) Sensor Model
@@ -11,20 +12,36 @@
  * - Angular velocity measurements (gyroscope)
  * - Noise (white noise + bias)
  * - Configurable error characteristics
+ *
+ * Component Integration:
+ * - Inherits from Sensor component
+ * - Automatically updates bias drift each frame
+ * - Can be accessed via spacecraft component system
  */
-class IMU
+class IMU : public Sensor
 {
 public:
   IMU();
+  explicit IMU(const std::string &name);
+
+  // Component interface overrides
+  std::string getTypeName() const override { return "IMU"; }
+  void update(double deltaTime) override { updateBias(deltaTime); }
+
+  // Sensor interface override
+  void measure() override {} // Not used for IMU (measurement is on-demand)
 
   /**
    * Get simulated IMU measurement from true angular velocity
    * Adds noise and bias to simulate real sensor
+   * @param trueAngularVelocity True angular velocity in body frame (rad/s)
+   * @return Noisy measurement with bias (rad/s)
    */
   glm::dvec3 measureAngularVelocity(const glm::dvec3 &trueAngularVelocity);
 
   /**
    * Update bias (random walk over time)
+   * Called automatically by Component::update()
    */
   void updateBias(double deltaTime);
 
