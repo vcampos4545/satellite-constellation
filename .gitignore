@@ -31,10 +31,10 @@ Makefile
 *.lib
 
 # Texture files (usually large, can be downloaded separately)
-textures/*.jpg
-textures/*.png
-textures/*.bmp
-!textures/README.md
+resources/textures/*.jpg
+resources/textures/*.png
+resources/textures/*.bmp
+!resources/textures/README.md
 
 # Model files (usually large, keep only README)
 resources/models/**/*
