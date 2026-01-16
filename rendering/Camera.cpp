@@ -79,6 +79,7 @@ void Camera::screenToWorldRay(double mouseX, double mouseY, int screenWidth, int
   glm::vec4 rayEndWorld = invView * rayEndClip;
 
   // Extract origin and direction
-  rayOrigin = glm::vec3(rayStartWorld);
+  // rayOrigin = glm::vec3(rayStartWorld);
+  rayOrigin = position;
   rayDirection = glm::normalize(glm::vec3(rayEndWorld) - rayOrigin);
 }
