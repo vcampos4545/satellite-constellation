@@ -30,7 +30,6 @@ include_directories(${CMAKE_SOURCE_DIR}/dynamics/integrators)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/gravityModels)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/environmentalModels)
 include_directories(${CMAKE_SOURCE_DIR}/fsw)
-include_directories(${CMAKE_SOURCE_DIR}/fsw/adcs)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/stationkeeping)
 include_directories(${CMAKE_SOURCE_DIR}/rendering)
@@ -101,10 +100,6 @@ add_executable(simulation
     scenarios/GEOScenario.cpp
     scenarios/MolniyaScenario.cpp
 
-    # Flight Software - ADCS
-    fsw/adcs/ADCSController.cpp
-    fsw/adcs/StandardFSW.cpp
-    fsw/adcs/PassiveFSW.cpp
 
     # Rendering
     rendering/Renderer.cpp
