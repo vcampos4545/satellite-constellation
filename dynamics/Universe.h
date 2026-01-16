@@ -2,7 +2,7 @@
 #define UNIVERSE_H
 
 #include "CelestialBody.h"
-#include "Satellite.h"
+#include "Spacecraft.h"
 #include "GroundStation.h"
 #include <vector>
 #include <memory>
@@ -14,7 +14,7 @@ public:
 
   // Get all bodies
   const std::vector<std::shared_ptr<CelestialBody>> &getBodies() const { return bodies; }
-  const std::vector<std::shared_ptr<Satellite>> &getSatellites() const { return satellites; }
+  const std::vector<std::shared_ptr<Spacecraft>> &getSpacecrafts() const { return spacecraft; }
   const std::vector<std::shared_ptr<GroundStation>> &getGroundStations() const { return groundStations; }
 
   // Get specific bodies (if needed)
@@ -26,12 +26,9 @@ public:
   void initializeSun();
   void initializeMoon();
 
-  void addSatelliteWithOrbit(
+  void addSpacecraftWithOrbit(
       const Orbit &orbit,
-      int planeId = 0,
-      int indexInPlane = 0,
-      const std::string &name = "",
-      SatelliteType type = SatelliteType::DEFAULT);
+      const std::string &name = "");
   void addGroundStation(const std::string name, double latitude, double longitude);
 
   // Update physics with sub-stepping for stability
@@ -45,7 +42,7 @@ private:
   void updateSunPosition();
 
   std::vector<std::shared_ptr<CelestialBody>> bodies;
-  std::vector<std::shared_ptr<Satellite>> satellites;
+  std::vector<std::shared_ptr<Spacecraft>> spacecraft;
   std::vector<std::shared_ptr<GroundStation>> groundStations;
   std::shared_ptr<CelestialBody> earth;
   std::shared_ptr<CelestialBody> sun;

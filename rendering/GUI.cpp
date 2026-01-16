@@ -1,7 +1,7 @@
 #include "GUI.h"
 #include "Simulation.h"
 #include "Universe.h"
-#include "Satellite.h"
+#include "Spacecraft.h"
 #include "CelestialBody.h"
 #include "MathUtils.h"
 #include "Constants.h"
@@ -116,8 +116,8 @@ void GUI::initWindow(int width, int height)
 
 void GUI::initCamera(int width, int height)
 {
-  m_camera.setDistance(2.5e7f);
-  m_camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f));
+  m_camera.setDistance(2.5e7f);                    // 25,000 km
+  m_camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f)); // set origin as target
 }
 
 void GUI::initRenderer()
@@ -169,18 +169,6 @@ void GUI::render()
   {
     glm::dvec3 objectPos = m_simulation->getUniverse().getObjectPosition(m_selectedObject.object);
     m_camera.setTarget(glm::vec3(objectPos));
-
-    // Calculate predicted orbit for selected satellite
-    if (m_selectedObject.type == SelectedObject::Type::Satellite)
-    {
-      Satellite *sat = m_selectedObject.asSatellite();
-      if (sat)
-      {
-        Universe &universe = m_simulation->getUniverse();
-
-        // sat->calculateFootprint(universe.getEarth()->getPosition(), 50);
-      }
-    }
   }
 
   // Start ImGui frame
@@ -208,8 +196,8 @@ void GUI::render()
 
 void GUI::renderScene()
 {
-  Satellite *selectedSat = m_selectedObject.asSatellite();
-  m_renderer->render(m_simulation->getUniverse(), m_camera, m_windowWidth, m_windowHeight, m_vizState, selectedSat);
+  Spacecraft *selectedSc = m_selectedObject.asSpacecraft();
+  m_renderer->render(m_simulation->getUniverse(), m_camera, m_windowWidth, m_windowHeight, m_vizState, selectedSc);
 }
 
 void GUI::renderMenuBar()
@@ -219,23 +207,19 @@ void GUI::renderMenuBar()
     // ========== VIEW MENU ==========
     if (ImGui::BeginMenu("View"))
     {
-      ImGui::SeparatorText("Global Visualization");
-      ImGui::Checkbox("Show All Orbit Paths", &m_vizState.showAllOrbitPaths);
-      ImGui::Checkbox("Show All Attitude Vectors", &m_vizState.showAllAttitudeVectors);
-
-      ImGui::Separator();
-
-      // Selected satellite visualization (if any)
-      if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Satellite)
+      // Selected spacecraft visualization (if any)
+      if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Spacecraft)
       {
-        Satellite *sat = m_selectedObject.asSatellite();
-        if (sat)
+        Spacecraft *sc = m_selectedObject.asSpacecraft();
+        if (sc)
         {
-          ImGui::SeparatorText("Selected Satellite");
-          auto &satViz = m_vizState.getOrCreate(sat);
-          ImGui::Checkbox("Orbit Path", &satViz.showOrbitPath);
-          ImGui::Checkbox("Footprint", &satViz.showFootprint);
-          ImGui::Checkbox("Attitude Vector", &satViz.showAttitudeVector);
+          ImGui::SeparatorText("Selected Spacecraft");
+          auto &scViz = m_vizState.getOrCreate(sc);
+          ImGui::Checkbox("Orbit Path", &scViz.showOrbitPath);
+          ImGui::Checkbox("Predicted Orbit Path", &scViz.showPredictedOrbitPath);
+          ImGui::Checkbox("Attitude Vector", &scViz.showAttitudeVector);
+          ImGui::Checkbox("Spaceraft axes", &scViz.showAxes);
+          ImGui::Checkbox("Spaceraft velocity vector", &scViz.showVelocityVector);
         }
       }
 
@@ -346,132 +330,6 @@ void GUI::renderMenuBar()
       ImGui::EndMenu();
     }
 
-    // ========== ACTUATORS MENU (for selected satellite) ==========
-    if (ImGui::BeginMenu("Actuators"))
-    {
-      if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Satellite)
-      {
-        Satellite *sat = m_selectedObject.asSatellite();
-        if (sat)
-        {
-          ImGui::SeparatorText(sat->getName().c_str());
-
-          // ADCS Control Modes
-          ImGui::SeparatorText("ADCS Mode");
-
-          int currentMode = (int)sat->getControlMode();
-
-          if (ImGui::MenuItem("None", nullptr, currentMode == 0))
-          {
-            sat->setControlMode(AttitudeControlMode::NONE);
-          }
-          if (ImGui::MenuItem("Detumble", nullptr, currentMode == 1))
-          {
-            sat->setControlMode(AttitudeControlMode::DETUMBLE);
-          }
-          if (ImGui::MenuItem("Nadir Pointing", nullptr, currentMode == 2))
-          {
-            sat->setControlMode(AttitudeControlMode::NADIR_POINTING);
-          }
-          if (ImGui::MenuItem("Sun Pointing", nullptr, currentMode == 3))
-          {
-            sat->setControlMode(AttitudeControlMode::SUN_POINTING);
-          }
-          if (ImGui::MenuItem("Velocity Pointing", nullptr, currentMode == 4))
-          {
-            sat->setControlMode(AttitudeControlMode::VELOCITY_POINTING);
-          }
-          if (ImGui::MenuItem("Inertial Hold", nullptr, currentMode == 5))
-          {
-            sat->setControlMode(AttitudeControlMode::INERTIAL_HOLD);
-          }
-          if (ImGui::MenuItem("Target Tracking", nullptr, currentMode == 6))
-          {
-            sat->setControlMode(AttitudeControlMode::TARGET_TRACKING);
-          }
-
-          ImGui::Separator();
-
-          // Control Algorithm
-          ImGui::SeparatorText("Control Algorithm");
-          int currentAlgo = (int)sat->getControlAlgorithm();
-
-          if (ImGui::MenuItem("PID", nullptr, currentAlgo == 0))
-          {
-            sat->setControlAlgorithm(ControlAlgorithm::PID);
-          }
-          if (ImGui::MenuItem("LQR", nullptr, currentAlgo == 1))
-          {
-            sat->setControlAlgorithm(ControlAlgorithm::LQR);
-          }
-          if (ImGui::MenuItem("MPC", nullptr, currentAlgo == 2))
-          {
-            sat->setControlAlgorithm(ControlAlgorithm::MPC);
-          }
-
-          ImGui::Separator();
-
-          if (sat->getControlAlgorithm() == ControlAlgorithm::PID)
-          {
-            if (ImGui::MenuItem("Auto-Tune PID"))
-            {
-              sat->autoTunePID(20.0, 0.9);
-              std::cout << "PID auto-tuned for " << sat->getName() << std::endl;
-            }
-            if (ImGui::MenuItem("Reset Integral Error"))
-            {
-              sat->resetIntegralError();
-              std::cout << "Integral error reset for " << sat->getName() << std::endl;
-            }
-          }
-        }
-      }
-      else
-      {
-        ImGui::TextDisabled("No satellite selected");
-        ImGui::TextDisabled("Select a satellite to control actuators");
-      }
-
-      ImGui::EndMenu();
-    }
-
-    // ========== INSTRUMENTS MENU (for selected satellite) ==========
-    if (ImGui::BeginMenu("Instruments"))
-    {
-      if (m_selectedObject.isValid() && m_selectedObject.type == SelectedObject::Type::Satellite)
-      {
-        Satellite *sat = m_selectedObject.asSatellite();
-        if (sat)
-        {
-          ImGui::SeparatorText(sat->getName().c_str());
-
-          // Sensor data would go here
-          ImGui::Text("Star Tracker: ACTIVE");
-          ImGui::Text("Sun Sensor: ACTIVE");
-          ImGui::Text("Magnetometer: ACTIVE");
-          ImGui::Text("Gyroscope: ACTIVE");
-
-          ImGui::Separator();
-          ImGui::SeparatorText("Payload");
-          ImGui::Text("Communications: NOMINAL");
-          ImGui::Text("Power Beam: %s", sat->isInEclipse() ? "OFFLINE" : "ACTIVE");
-
-          ImGui::Separator();
-          if (ImGui::MenuItem("Request Full Telemetry"))
-          {
-            std::cout << "Telemetry requested from " << sat->getName() << std::endl;
-          }
-        }
-      }
-      else
-      {
-        ImGui::TextDisabled("No satellite selected");
-        ImGui::TextDisabled("Select a satellite to view instruments");
-      }
-
-      ImGui::EndMenu();
-    }
-
     // Show current status on the right side of menu bar
     ImGui::Separator();
 
@@ -542,12 +400,12 @@ void GUI::renderMenuBar()
     // Selected object indicator
     if (m_selectedObject.isValid())
     {
-      if (m_selectedObject.type == SelectedObject::Type::Satellite)
+      if (m_selectedObject.type == SelectedObject::Type::Spacecraft)
       {
-        Satellite *sat = m_selectedObject.asSatellite();
-        if (sat)
+        Spacecraft *sc = m_selectedObject.asSpacecraft();
+        if (sc)
         {
-          ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "%s", sat->getName().c_str());
+          ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "%s", sc->getName().c_str());
         }
       }
       else if (m_selectedObject.type == SelectedObject::Type::CelestialBody)
@@ -570,52 +428,36 @@ void GUI::renderUI()
 
   if (m_selectedObject.isValid())
   {
-    if (m_selectedObject.type == SelectedObject::Type::Satellite)
+    if (m_selectedObject.type == SelectedObject::Type::Spacecraft)
     {
-      Satellite *sat = m_selectedObject.asSatellite();
-      if (sat)
+      Spacecraft *sc = m_selectedObject.asSpacecraft();
+      if (sc)
       {
-        ImGui::Begin("Satellite Operations Dashboard", nullptr, ImGuiWindowFlags_None);
+        ImGui::Begin("Spacecraft Operations Dashboard", nullptr, ImGuiWindowFlags_None);
         ImGui::SetWindowSize(ImVec2(500, 750), ImGuiCond_FirstUseEver);
 
         // ========== HEADER: SATELLITE IDENTIFICATION ==========
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.8f, 1.0f, 1.0f));
-        ImGui::TextUnformatted(sat->getName().c_str());
+        ImGui::TextUnformatted(sc->getName().c_str());
         ImGui::PopStyleColor();
-        ImGui::SameLine();
-        ImGui::TextDisabled("(Plane %d, Sat %d)", sat->getPlaneId(), sat->getIndexInPlane());
         ImGui::Separator();
 
-        // ========== HEALTH SUMMARY ==========
+        // ========== SUMMARY ==========
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2f, 0.3f, 0.4f, 1.0f));
-        if (ImGui::CollapsingHeader("Health Summary", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::CollapsingHeader("Summary", ImGuiTreeNodeFlags_DefaultOpen))
         {
           ImGui::PopStyleColor();
           ImGui::Indent();
 
-          auto pos = sat->getPosition();
+          auto pos = sc->getPosition();
           double altitude = (glm::length(pos) - EARTH_RADIUS) / 1e3;
-          double batteryPercent = sat->getBatteryPercentage();
-          double omegaMag = glm::length(sat->getAngularVelocity()) * 180.0 / PI;
+          double omegaMag = glm::length(sc->getAngularVelocity()) * 180.0 / PI;
 
           ImGui::Columns(2, "healthcols", false);
 
           ImGui::Text("Altitude:");
           ImGui::NextColumn();
           ImGui::Text("%.0f km", altitude);
-          ImGui::NextColumn();
-
-          ImGui::Text("Battery:");
-          ImGui::NextColumn();
-          ImVec4 battColor = batteryPercent > 50 ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : batteryPercent > 20 ? ImVec4(0.9f, 0.7f, 0.2f, 1.0f)
-                                                                                                        : ImVec4(0.9f, 0.2f, 0.2f, 1.0f);
-          ImGui::TextColored(battColor, "%.0f%%", batteryPercent);
-          ImGui::NextColumn();
-
-          ImGui::Text("ADCS Mode:");
-          ImGui::NextColumn();
-          const char *modeShort[] = {"OFF", "DETUMB", "NADIR", "SUN", "VEL", "INERT", "TGT"};
-          ImGui::Text("%s", modeShort[(int)sat->getControlMode()]);
           ImGui::NextColumn();
 
           ImGui::Text("Ang. Velocity:");
@@ -640,12 +482,13 @@ void GUI::renderUI()
         ImGui::Separator();
         ImGui::Text("Visualization:");
 
-        auto &satViz = m_vizState.getOrCreate(sat);
-        ImGui::Checkbox("Orbit Path", &satViz.showOrbitPath);
-        ImGui::SameLine();
-        ImGui::Checkbox("Footprint", &satViz.showFootprint);
-        ImGui::SameLine();
-        ImGui::Checkbox("Attitude", &satViz.showAttitudeVector);
+        auto &scViz = m_vizState.getOrCreate(sc);
+
+        ImGui::Checkbox("Orbit Path", &scViz.showOrbitPath);
+        ImGui::Checkbox("Predicted Orbit Path", &scViz.showPredictedOrbitPath);
+        ImGui::Checkbox("Attitude Vector", &scViz.showAttitudeVector);
+        ImGui::Checkbox("Spaceraft axes", &scViz.showAxes);
+        ImGui::Checkbox("Spaceraft velocity vector", &scViz.showVelocityVector);
 
         // ========== ACTIONS ==========
         ImGui::Spacing();
@@ -718,24 +561,33 @@ void GUI::renderUI()
       }
     }
 
-    // ========== SATELLITES ==========
+    // ========== SPACAECRAFTSs ==========
     ImGui::Spacing();
-    if (ImGui::CollapsingHeader("Satellites", ImGuiTreeNodeFlags_DefaultOpen))
+    if (ImGui::CollapsingHeader("Spacecrafts", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      auto &satellites = universe.getSatellites();
-      for (const auto &sat : satellites)
+      auto &spacecrafts = universe.getSpacecrafts();
+      for (const auto &sc : spacecrafts)
       {
 
-        std::string satLabel = sat->getName();
-        double altitude = (glm::length(sat->getPosition()) - EARTH_RADIUS) / 1e3;
-        satLabel += " (" + std::to_string((int)altitude) + " km)";
+        std::string scLabel = sc->getName();
+        double altitude = (glm::length(sc->getPosition()) - EARTH_RADIUS) / 1e3;
+        scLabel += " (" + std::to_string((int)altitude) + " km)";
 
-        if (ImGui::Selectable(satLabel.c_str()))
+        if (ImGui::Selectable(scLabel.c_str()))
         {
-          m_selectedObject.type = SelectedObject::Type::Satellite;
-          m_selectedObject.object = sat.get();
-          m_camera.setTarget(glm::vec3(sat->getPosition()));
-          std::cout << "Selected: " << sat->getName() << std::endl;
+          m_selectedObject.type = SelectedObject::Type::Spacecraft;
+          m_selectedObject.object = sc.get();
+          m_camera.setTarget(glm::vec3(sc->getPosition()));
+          auto &scViz = m_vizState.getOrCreate(sc.get());
+
+          // TODO: Generate predicted orbit path only on selection
+
+          scViz.showOrbitPath = true;
+          scViz.showPredictedOrbitPath = true;
+          scViz.showVelocityVector = true;
+          scViz.showAttitudeVector = true;
+          scViz.showAxes = true;
+          std::cout << "Selected: " << sc->getName() << std::endl;
         }
       }
     }
@@ -877,19 +729,19 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
           }
         }
 
-        // Check satellites
-        for (const auto &sat : universe.getSatellites())
+        // Check spacecraft
+        for (const auto &sc : universe.getSpacecrafts())
         {
           float pickRadius = 1000e3f * pickRadiusScale;
           float distance;
 
-          if (raySphereIntersect(rayOrigin, rayDirection, glm::vec3(sat->getPosition()), pickRadius, distance))
+          if (raySphereIntersect(rayOrigin, rayDirection, glm::vec3(sc->getPosition()), pickRadius, distance))
           {
             if (distance < closestDistance)
             {
               closestDistance = distance;
-              closestObject = sat.get();
-              closestType = SelectedObject::Type::Satellite;
+              closestObject = sc.get();
+              closestType = SelectedObject::Type::Spacecraft;
             }
           }
         }
@@ -901,21 +753,18 @@ void GUI::mouseButtonCallback(int button, int action, int mods)
           m_selectedObject.object = closestObject;
           m_camera.setTarget(glm::vec3(universe.getObjectPosition(closestObject)));
 
-          if (closestType == SelectedObject::Type::Satellite)
+          if (closestType == SelectedObject::Type::Spacecraft)
           {
-            Satellite *sat = static_cast<Satellite *>(closestObject);
-            sat->calculatePredictedOrbit(
-                universe.getEarth()->getPosition(),
-                EARTH_MASS,
-                universe.getSun()->getPosition(),
-                universe.getMoon()->getPosition(),
-                500 // Number of prediction points
-            );
-            std::cout << "Selected satellite: " << sat->getName() << std::endl;
-          }
-          else if (closestType == SelectedObject::Type::CelestialBody)
-          {
-            std::cout << "Selected celestial body" << std::endl;
+            Spacecraft *sc = static_cast<Spacecraft *>(closestObject);
+            auto &scViz = m_vizState.getOrCreate(sc);
+
+            // TODO: Generate predicted orbit path only on selection
+
+            scViz.showOrbitPath = true;
+            scViz.showPredictedOrbitPath = true;
+            scViz.showVelocityVector = true;
+            scViz.showAttitudeVector = true;
+            scViz.showAxes = true;
           }
         }
       }

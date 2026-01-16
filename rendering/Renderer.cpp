@@ -10,6 +10,20 @@
 
 namespace fs = std::filesystem;
 
+// Helper
+static void buildOrthonormalBasis(
+    const glm::vec3 &n,
+    glm::vec3 &b1,
+    glm::vec3 &b2)
+{
+  if (fabs(n.x) > fabs(n.z))
+    b1 = glm::normalize(glm::vec3(-n.y, n.x, 0.0f));
+  else
+    b1 = glm::normalize(glm::vec3(0.0f, -n.z, n.y));
+
+  b2 = glm::normalize(glm::cross(n, b1));
+}
+
 Renderer::Renderer()
     : sphereMesh(1.0f, 30, 30), // Unit sphere with 30x30 tessellation
       earthTextureLoaded(false),
@@ -72,7 +86,7 @@ bool Renderer::initialize()
 }
 
 void Renderer::render(const Universe &universe, const Camera &camera, int windowWidth, int windowHeight,
-                      const VisualizationState &vizState, const Satellite *selectedSatellite)
+                      VisualizationState &vizState, const Spacecraft *selectedSpacecraft)
 {
   if (!initialized)
   {
@@ -116,14 +130,11 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
   lineShader->setMat4("view", view);
   lineShader->setMat4("projection", projection);
 
-  // Render Moon's orbit path (if it has physics enabled)
-  if (universe.getMoon()->isPhysicsEnabled())
-  {
-    renderLine(universe.getMoon()->getOrbitPath(), glm::vec3(1.0f, 1.0f, 1.0f), 10.0f);
-  }
+  // Render Moon's orbit path
+  renderLine(universe.getMoon()->getOrbitPath(), glm::vec3(1.0f, 1.0f, 1.0f), 10.0f);
 
-  // Render satellites with all visualization options
-  renderSatellites(universe.getSatellites(), vizState, selectedSatellite);
+  // Render spacecrafts with all visualization options
+  renderSpacecrafts(universe.getSpacecrafts(), vizState, selectedSpacecraft);
 
   // Render coordinate axis overlay
   renderCoordinateAxis(camera, windowWidth, windowHeight);
@@ -247,44 +258,50 @@ void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body, b
   sphereMesh.draw();
 }
 
-void Renderer::renderSatellites(const std::vector<std::shared_ptr<Satellite>> &satellites,
-                                const VisualizationState &vizState,
-                                const Satellite *selectedSatellite)
+void Renderer::renderSpacecrafts(const std::vector<std::shared_ptr<Spacecraft>> &spacecrafts,
+                                 VisualizationState &vizState,
+                                 const Spacecraft *selectedSpacecraft)
 {
   // Single loop through all satellites, rendering each component as needed
-  for (const auto &satellite : satellites)
+  for (const auto &sc : spacecrafts)
   {
     // Render satellite 3D geometry (always rendered)
-    renderSatelliteGeometry(satellite);
+    renderSpacecraftGeometry(sc);
+    auto &scViz = vizState.getOrCreate(sc.get());
 
-    // Render historical orbit path
-    if (vizState.shouldDrawOrbit(satellite.get()))
+    // Save orbit path
+    // TODO: Only add every n frames
+    scViz.orbitPath.push_back(sc->getPosition());
+
+    if (scViz.showOrbitPath)
     {
-      renderLine(satellite->getOrbitPath(), glm::vec3(1.0f, 1.0f, 1.0f), 10.0f); // White, 10px wide
+      renderLine(scViz.orbitPath, glm::vec3(1.0f, 1.0f, 1.0f), 10.0f); // White, 10px wide
     }
 
-    // Render predicted future orbit (only for selected satellite)
-    if (selectedSatellite && satellite.get() == selectedSatellite)
+    if (scViz.showPredictedOrbitPath)
     {
-      renderLine(satellite->getPredictedOrbit(), glm::vec3(0.3f, 0.8f, 1.0f), 10.0f); // Cyan, 10px wide
+      renderLine(scViz.predictedOrbitPath, glm::vec3(0.3f, 0.8f, 1.0f), 10.0f); // Cyan, 10px wide
     }
 
-    // Render ground footprint circle
-    if (vizState.shouldDrawFootprint(satellite.get()))
+    if (scViz.showVelocityVector)
     {
-      renderLine(satellite->getFootprintCircle(), glm::vec3(0.8f, 1.0f, 0.3f), 2.0f); // Yellow-green, 2px wide
+      renderSpacecraftVelocityVector(sc);
     }
 
-    // Render attitude pointing vector
-    if (vizState.shouldDrawAttitudeVector(satellite.get()))
+    if (scViz.showAttitudeVector)
     {
-      renderSatelliteAttitudeVector(satellite);
+      renderSpacecraftAttitudeVector(sc);
+    }
+
+    if (scViz.showAxes)
+    {
+      renderSpacecraftAxes(sc);
     }
   }
 }
 
 // ========================================
-// SATELLITE RENDER HELPER FUNCTIONS
+// SPACECRAFT RENDER HELPER FUNCTIONS
 // ========================================
 
 // Generic line rendering helper - dvec3 version (converts to vec3)
@@ -321,31 +338,83 @@ void Renderer::renderLine(const std::vector<glm::vec3> &vertices, const glm::vec
   glLineWidth(2.0f); // Reset to default
 }
 
-void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite)
+void Renderer::renderArrow(
+    const glm::vec3 &start,
+    const glm::vec3 &end,
+    const glm::vec3 &color,
+    float lineWidth,
+    float headLength,
+    float headRadius,
+    int coneSegments)
 {
-  glm::vec3 satPos = glm::vec3(satellite->getPosition());
+  glm::vec3 dir = end - start;
+  float length = glm::length(dir);
+  if (length <= 0.0001f)
+    return;
 
-  // Get satellite attitude (quaternion -> rotation matrix)
-  glm::quat attitudeQuat = glm::quat(satellite->getQuaternion());
+  glm::vec3 dirNorm = glm::normalize(dir);
+
+  // Clamp head length
+  headLength = glm::min(headLength, length * 0.5f);
+
+  glm::vec3 shaftEnd = end - dirNorm * headLength;
+
+  // ---- Draw shaft ----
+  renderLine(
+      std::vector<glm::vec3>{start, shaftEnd},
+      color,
+      lineWidth);
+
+  // ---- Build cone basis ----
+  glm::vec3 b1, b2;
+  buildOrthonormalBasis(dirNorm, b1, b2);
+
+  // ---- Draw cone edges ----
+  std::vector<glm::vec3> coneLines;
+
+  for (int i = 0; i < coneSegments; ++i)
+  {
+    float a0 = (float)i / coneSegments * glm::two_pi<float>();
+    float a1 = (float)(i + 1) / coneSegments * glm::two_pi<float>();
+
+    glm::vec3 p0 = shaftEnd + (cos(a0) * b1 + sin(a0) * b2) * headRadius;
+
+    glm::vec3 p1 = shaftEnd + (cos(a1) * b1 + sin(a1) * b2) * headRadius;
+
+    // Circle edge
+    coneLines.push_back(p0);
+    coneLines.push_back(p1);
+
+    // Side edge to tip
+    coneLines.push_back(p0);
+    coneLines.push_back(end);
+  }
+
+  renderLine(coneLines, color, lineWidth);
+}
+
+void Renderer::renderSpacecraftGeometry(const std::shared_ptr<Spacecraft> &spacecraft)
+{
+  glm::vec3 scPos = glm::vec3(spacecraft->getPosition());
+
+  // Get spacecraft attitude (quaternion -> rotation matrix)
+  glm::quat attitudeQuat = glm::quat(spacecraft->getAttitude());
   glm::mat4 attitudeMatrix = glm::mat4_cast(attitudeQuat);
 
   // Setup shader for satellite rendering
   sphereShader->use();
   sphereShader->setBool("useTexture", false);
   sphereShader->setFloat("ambientStrength", 1.0f);
-  sphereShader->setBool("isEmissive", true); // Satellites are self-illuminated
+  sphereShader->setBool("isEmissive", true); // Spacecrafts are self-illuminated
 
-  // Check satellite type and look up corresponding model
-  SatelliteType satType = satellite->getType();
-  std::string modelName = getSatelliteModelName(satType);
-
+  std::string modelName = spacecraft->getModelName();
   // Try to find and render the 3D model
-  auto modelIt = satelliteModels.find(modelName);
-  if (!modelName.empty() && modelIt != satelliteModels.end())
+  auto modelIt = objModels.find(modelName);
+  if (!modelName.empty() && modelIt != objModels.end())
   {
     // Render 3D model with materials
     glm::mat4 meshModel = glm::mat4(1.0f);
-    meshModel = glm::translate(meshModel, satPos);
+    meshModel = glm::translate(meshModel, scPos);
     meshModel = meshModel * attitudeMatrix;
     meshModel = glm::scale(meshModel, glm::vec3(1e4f)); // ~8km scale
     sphereShader->setMat4("model", meshModel);
@@ -354,70 +423,60 @@ void Renderer::renderSatelliteGeometry(const std::shared_ptr<Satellite> &satelli
   }
   else
   {
-
-    auto model = satelliteModels.find("satellite");
+    // Default to satellite model
+    // TODO: Make fallback when satellite model doesnt exist
+    auto model = objModels.find("satellite");
 
     // Render 3D model with materials
     glm::mat4 meshModel = glm::mat4(1.0f);
-    meshModel = glm::translate(meshModel, satPos);
+    meshModel = glm::translate(meshModel, scPos);
     meshModel = meshModel * attitudeMatrix;
     meshModel = glm::scale(meshModel, glm::vec3(5.0f));
     sphereShader->setMat4("model", meshModel);
 
     model->second->draw(*sphereShader);
-
-    // Fallback: Simple geometry (cube + solar panels)
-    // glm::vec3 brightColor = glm::vec3(0.8f, 0.8f, 0.8f); // Default gray color
-    // sphereShader->setVec3("objectColor", brightColor);
-
-    // // Central body
-    // glm::mat4 bodyModel = glm::mat4(1.0f);
-    // bodyModel = glm::translate(bodyModel, satPos);
-    // bodyModel = bodyModel * attitudeMatrix;
-    // bodyModel = glm::scale(bodyModel, glm::vec3(1.6e4f, 2.4e4f, 1.6e4f));
-    // sphereShader->setMat4("model", bodyModel);
-    // cubeMesh.draw();
-
-    // // Solar panels (blue color)
-    // glm::vec3 panelColor = glm::vec3(0.4f, 0.6f, 1.0f);
-    // sphereShader->setVec3("objectColor", panelColor);
-
-    // // Left panel
-    // glm::mat4 leftPanelModel = glm::mat4(1.0f);
-    // leftPanelModel = glm::translate(leftPanelModel, satPos);
-    // leftPanelModel = leftPanelModel * attitudeMatrix;
-    // leftPanelModel = glm::translate(leftPanelModel, glm::vec3(-3.0e4f, 0.0f, 0.0f));
-    // leftPanelModel = glm::scale(leftPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
-    // sphereShader->setMat4("model", leftPanelModel);
-    // cubeMesh.draw();
-
-    // // Right panel
-    // glm::mat4 rightPanelModel = glm::mat4(1.0f);
-    // rightPanelModel = glm::translate(rightPanelModel, satPos);
-    // rightPanelModel = rightPanelModel * attitudeMatrix;
-    // rightPanelModel = glm::translate(rightPanelModel, glm::vec3(3.0e4f, 0.0f, 0.0f));
-    // rightPanelModel = glm::scale(rightPanelModel, glm::vec3(4.0e4f, 3.6e4f, 0.4e4f));
-    // sphereShader->setMat4("model", rightPanelModel);
-    // cubeMesh.draw();
   }
 }
 
-void Renderer::renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite)
+void Renderer::renderSpacecraftAttitudeVector(const std::shared_ptr<Spacecraft> &spacecraft)
 {
   // Get satellite position and pointing direction (Z-axis in body frame)
-  glm::dvec3 satPos = satellite->getPosition();
-  glm::dvec3 zAxis = satellite->getBodyZAxis();
+  glm::dvec3 scPos = spacecraft->getPosition();
+  glm::dvec3 zAxis = spacecraft->getBodyZAxis();
 
   // Scale arrow to be visible (500 km long)
-  double arrowLength = 500e3;
-  glm::dvec3 arrowEnd = satPos + zAxis * arrowLength;
+  double arrowLength = 100e3;
+  glm::dvec3 arrowEnd = scPos + zAxis * arrowLength;
 
-  // Create arrow vertices
-  std::vector<glm::vec3> attitudeArrow = {
-      glm::vec3(satPos),
-      glm::vec3(arrowEnd)};
+  renderArrow(scPos, arrowEnd, glm::vec3(1.0f, 0.0f, 1.0f), 3.0f); // Purple, 3px wide
+}
 
-  renderLine(attitudeArrow, glm::vec3(1.0f, 0.0f, 0.0f), 3.0f); // Red, 3px wide
+void Renderer::renderSpacecraftVelocityVector(const std::shared_ptr<Spacecraft> &spacecraft)
+{
+  // Get satellite position and pointing direction (Z-axis in body frame)
+  glm::dvec3 scPos = spacecraft->getPosition();
+  glm::dvec3 velDir = glm::normalize(spacecraft->getVelocity());
+
+  // Scale arrow to be visible (500 km long)
+  double arrowLength = 100e3;
+  glm::dvec3 arrowEnd = scPos + velDir * arrowLength;
+
+  renderArrow(scPos, arrowEnd, glm::vec3(1.0f, 1.0f, 0.0f), 3.0f); // Yellow, 3px wide
+}
+
+void Renderer::renderSpacecraftAxes(const std::shared_ptr<Spacecraft> &spacecraft)
+{
+  glm::dvec3 scPos = spacecraft->getPosition();
+  double arrowLength = 100e3;
+  // X axis
+  auto xAxis = spacecraft->getBodyXAxis();
+  renderArrow(scPos, scPos + xAxis * arrowLength, glm::vec3(1.0f, 0.0f, 0.0f), 10.0f);
+  // Y axis
+  auto yAxis = spacecraft->getBodyYAxis();
+  renderArrow(scPos, scPos + yAxis * arrowLength, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
+  // Z axis
+  auto zAxis = spacecraft->getBodyZAxis();
+  renderArrow(scPos, scPos + zAxis * arrowLength, glm::vec3(0.0f, 0.0f, 1.0f), 10.0f);
 }
 
 void Renderer::renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations)
@@ -532,7 +591,7 @@ void Renderer::loadAllModels()
       auto mesh = std::make_shared<OBJMesh>();
       if (mesh->load(objPath))
       {
-        satelliteModels[folderName] = mesh;
+        objModels[folderName] = mesh;
         std::cout << "Loaded satellite model: " << folderName << std::endl;
       }
       else
@@ -546,21 +605,5 @@ void Renderer::loadAllModels()
     }
   }
 
-  std::cout << "Total satellite models loaded: " << satelliteModels.size() << std::endl;
-}
-
-std::string Renderer::getSatelliteModelName(SatelliteType type) const
-{
-  switch (type)
-  {
-  case SatelliteType::STARLINK:
-    return "starlink";
-  case SatelliteType::CUBESAT_1U:
-    return "cubesat1U";
-  case SatelliteType::CUBESAT_2U:
-    return "cubesat2U";
-  case SatelliteType::DEFAULT:
-  default:
-    return ""; // Empty string means no model (use fallback geometry)
-  }
+  std::cout << "Total satellite models loaded: " << objModels.size() << std::endl;
 }

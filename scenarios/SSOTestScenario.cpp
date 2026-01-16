@@ -3,7 +3,7 @@
 #include "Universe.h"
 #include "Simulation.h"
 #include "Orbit.h"
-#include "Satellite.h"
+#include "Spacecraft.h"
 #include "Constants.h"
 #include <cstdio>
 
@@ -17,23 +17,20 @@ void SSOTestScenario::setup(Universe &universe)
   // Create Sun-Synchronous Orbit
   // Altitude: 700 km
   // Inclination: 98° (sun-synchronous for 700km altitude)
-  double altitude = 700e3;                               // 700 km
+  double altitude = 700e3;                                   // 700 km
   double semiMajorAxis = EARTH_EQUATORIAL_RADIUS + altitude; // ~7078 km
-  double eccentricity = 0.001;                           // Nearly circular
-  double inclination = 98.0 * PI / 180.0;                // 98° in radians
-  double raan = 0.0;                                     // Right Ascension of Ascending Node
-  double argOfPerigee = 0.0;                             // Argument of perigee
-  double trueAnomaly = 0.0;                              // Start at perigee
+  double eccentricity = 0.001;                               // Nearly circular
+  double inclination = 98.0 * PI / 180.0;                    // 98° in radians
+  double raan = 0.0;                                         // Right Ascension of Ascending Node
+  double argOfPerigee = 0.0;                                 // Argument of perigee
+  double trueAnomaly = 0.0;                                  // Start at perigee
 
   Orbit ssoOrbit{semiMajorAxis, eccentricity, inclination, raan, argOfPerigee, trueAnomaly};
 
   // Add satellite to universe
-  universe.addSatelliteWithOrbit(
+  universe.addSpacecraftWithOrbit(
       ssoOrbit,
-      0,            // planeId
-      0,            // indexInPlane
-      "SSO-Sat-1",  // name
-      SatelliteType::DEFAULT);
+      "SSO-Sat-1");
 
   printf("\033[36m[SSO Test] Created satellite 'SSO-Sat-1'\033[0m\n");
   printf("\033[36m[SSO Test]   Altitude: %.1f km\033[0m\n", altitude / 1000.0);

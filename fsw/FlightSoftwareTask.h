@@ -4,7 +4,7 @@
 #include <string>
 
 // Forward declaration
-class Satellite;
+class Spacecraft;
 
 /**
  * Base class for flight software tasks
@@ -12,12 +12,12 @@ class Satellite;
  * Flight software defines the "brain" of the satellite - how it makes decisions,
  * controls its attitude, manages power, performs station keeping, etc.
  *
- * The Satellite class provides hardware capabilities (sensors, actuators, power system),
+ * The Spacecraft class provides hardware capabilities (sensors, actuators, power system),
  * while FlightSoftwareTask subclasses implement the logic for using that hardware.
  *
  * This separation allows:
  * - Different FSW for different satellite types (Starlink, Cubesat, GPS, etc.)
- * - Easy scenario creation without modifying core Satellite class
+ * - Easy scenario creation without modifying core Spacecraft class
  * - Testing FSW independently of physics simulation
  * - Realistic modeling of spacecraft autonomy
  */
@@ -38,7 +38,7 @@ public:
    * @param satellite Pointer to the satellite hardware
    * @param deltaTime Time step in seconds
    */
-  virtual void execute(Satellite *satellite, double deltaTime) = 0;
+  virtual void execute(Spacecraft *satellite, double deltaTime) = 0;
 
   /**
    * Get the name of this FSW task (for debugging/logging)

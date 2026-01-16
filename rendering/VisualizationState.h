@@ -4,22 +4,26 @@
 #include <memory>
 #include <unordered_map>
 
-class Satellite;
+class Spacecraft;
 class CelestialBody;
 
 /**
  * Per-satellite visualization settings
  * Keeps rendering state separate from simulation logic
  */
-struct SatelliteVisualization
+struct SpacecraftVisualizationState
 {
+  std::vector<glm::dvec3> orbitPath = {};
+  std::vector<glm::dvec3> predictedOrbitPath = {};
   bool showOrbitPath = false;
-  bool showFootprint = false;
+  bool showPredictedOrbitPath = false;
   bool showAttitudeVector = false;
+  bool showVelocityVector = false;
+  bool showAxes = false;
 };
 
 /**
- * Selected object wrapper - can be either a CelestialBody or Satellite
+ * Selected object wrapper - can be either a CelestialBody or Spacecraft
  */
 struct SelectedObject
 {
@@ -27,19 +31,19 @@ struct SelectedObject
   {
     None,
     CelestialBody,
-    Satellite
+    Spacecraft
   };
 
   Type type = Type::None;
-  void *object = nullptr; // Raw pointer to either CelestialBody* or Satellite*
+  void *object = nullptr; // Raw pointer to either CelestialBody* or Spacecraft*
 
   SelectedObject() = default;
 
   SelectedObject(std::shared_ptr<CelestialBody> body)
       : type(Type::CelestialBody), object(body.get()) {}
 
-  SelectedObject(std::shared_ptr<Satellite> sat)
-      : type(Type::Satellite), object(sat.get()) {}
+  SelectedObject(std::shared_ptr<Spacecraft> sat)
+      : type(Type::Spacecraft), object(sat.get()) {}
 
   bool isValid() const { return type != Type::None && object != nullptr; }
   void clear()
@@ -53,9 +57,9 @@ struct SelectedObject
     return (type == Type::CelestialBody) ? static_cast<CelestialBody *>(object) : nullptr;
   }
 
-  Satellite *asSatellite() const
+  Spacecraft *asSpacecraft() const
   {
-    return (type == Type::Satellite) ? static_cast<Satellite *>(object) : nullptr;
+    return (type == Type::Spacecraft) ? static_cast<Spacecraft *>(object) : nullptr;
   }
 };
 
@@ -65,42 +69,13 @@ struct SelectedObject
 class VisualizationState
 {
 public:
-  // Global visualization toggles
-  bool showAllOrbitPaths = true;
-  bool showAllAttitudeVectors = true;
+  // Per-spacecraft visualization settings
+  std::unordered_map<const Spacecraft *, SpacecraftVisualizationState> spacecraftViz;
 
-  // Per-satellite visualization settings
-  std::unordered_map<const Satellite *, SatelliteVisualization> satelliteViz;
-
-  // Get or create visualization state for a satellite
-  SatelliteVisualization &getOrCreate(const Satellite *sat)
+  // Get or create visualization state for a spacecraft
+  SpacecraftVisualizationState &getOrCreate(const Spacecraft *sc)
   {
-    return satelliteViz[sat];
-  }
-
-  // Check if we should draw orbit for this satellite
-  bool shouldDrawOrbit(const Satellite *sat) const
-  {
-    if (!showAllOrbitPaths)
-      return false;
-    auto it = satelliteViz.find(sat);
-    return it != satelliteViz.end() ? it->second.showOrbitPath : false;
-  }
-
-  // Check if we should draw footprint for this satellite
-  bool shouldDrawFootprint(const Satellite *sat) const
-  {
-    auto it = satelliteViz.find(sat);
-    return it != satelliteViz.end() ? it->second.showFootprint : false;
-  }
-
-  // Check if we should draw attitude vector for this satellite
-  bool shouldDrawAttitudeVector(const Satellite *sat) const
-  {
-    if (!showAllAttitudeVectors)
-      return false;
-    auto it = satelliteViz.find(sat);
-    return it != satelliteViz.end() ? it->second.showAttitudeVector : false;
+    return spacecraftViz[sc];
   }
 };
 

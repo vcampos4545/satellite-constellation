@@ -1,7 +1,6 @@
 #include "GroundStation.h"
 #include "MathUtils.h"
 #include "Constants.h"
-#include "Satellite.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>

@@ -4,8 +4,6 @@
 #include "MathUtils.h"
 #include "GroundStation.h"
 #include "GroundStationData.h"
-#include "StandardFSW.h"
-#include "PassiveFSW.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -23,7 +21,7 @@ Universe::Universe()
   initializeMoon();
 
   // Scenarios configure the universe via setup() method
-  // No satellites or ground stations are added here by default
+  // No spacecraft or ground stations are added here by default
 }
 
 void Universe::initializeEarth()
@@ -126,21 +124,18 @@ void Universe::initializeMoon()
   bodies.push_back(moon);
 }
 
-void Universe::addSatelliteWithOrbit(
+void Universe::addSpacecraftWithOrbit(
     const Orbit &orbit,
-    int planeId,
-    int indexInPlane,
-    const std::string &name,
-    SatelliteType type)
+    const std::string &name)
 {
   // Convert orbital elements to Cartesian position and velocity
   glm::dvec3 position, velocity;
   orbit.toCartesian(position, velocity, G * EARTH_MASS);
 
-  // Create satellite with computed position/velocity
-  auto satellite = std::make_shared<Satellite>(orbit, position, velocity, planeId, indexInPlane, name, type);
+  // Create spacecraft with computed position/velocity
+  auto sc = std::make_shared<Spacecraft>(orbit, position, velocity, name);
 
-  satellites.push_back(satellite);
+  spacecraft.push_back(sc);
 }
 
 void Universe::addGroundStation(const std::string name, double latitude, double longitude)
@@ -176,10 +171,10 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     }
 
     // ========== UPDATE ALL SPACECRAFT ==========
-    for (auto &satellite : satellites)
+    for (auto &sc : spacecraft)
     {
-      // Update satellite (handles both ADCS and orbital dynamics internally)
-      satellite->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition());
+      // Update spacecraft (handles orbital dynamics and components)
+      sc->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition());
     }
 
     remainingTime -= stepTime;
@@ -207,12 +202,12 @@ glm::dvec3 Universe::getObjectPosition(void *object) const
     }
   }
 
-  // Check if it's a satellite
-  for (const auto &sat : satellites)
+  // Check if it's a spacecraft
+  for (const auto &sc : spacecraft)
   {
-    if (sat.get() == object)
+    if (sc.get() == object)
     {
-      return sat->getPosition();
+      return sc->getPosition();
     }
   }
 

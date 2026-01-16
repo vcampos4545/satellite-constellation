@@ -1,5 +1,9 @@
 #include "Spacecraft.h"
 #include "Component.h"
+#include "GravityModel.h"
+#include "EnvironmentalModels.h"
+#include "RK4Integrator.h"
+#include "Constants.h"
 #include <algorithm>
 
 Spacecraft::Spacecraft()
@@ -7,8 +11,13 @@ Spacecraft::Spacecraft()
       velocity(0.0, 0.0, 0.0),
       quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
       angularVelocity(0.0, 0.0, 0.0),
-      mass(100.0), // Default 100 kg
-      inertiaMatrix(glm::dmat3(1.0)) // Identity matrix
+      mass(260.0),                    // Default mass (kg)
+      inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
+      dragCoefficient(2.2),           // Typical satellite drag coefficient
+      crossSectionalArea(10.0),       // Default area (m²)
+      reflectivity(1.3),              // Default reflectivity
+      name(""),
+      modelName("starlink")
 {
 }
 
@@ -17,8 +26,30 @@ Spacecraft::Spacecraft(const glm::dvec3 &pos, const glm::dvec3 &vel)
       velocity(vel),
       quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
       angularVelocity(0.0, 0.0, 0.0),
-      mass(100.0), // Default 100 kg
-      inertiaMatrix(glm::dmat3(1.0)) // Identity matrix
+      mass(260.0),                    // Default mass (kg)
+      inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
+      dragCoefficient(2.2),           // Typical satellite drag coefficient
+      crossSectionalArea(10.0),       // Default area (m²)
+      reflectivity(1.3),              // Default reflectivity
+      name(""),
+      modelName("starlink")
+{
+}
+
+Spacecraft::Spacecraft(const Orbit &orbit,
+                       const glm::dvec3 &initPos,
+                       const glm::dvec3 &initVel,
+                       const std::string &name)
+    : position(initPos),
+      velocity(initVel),
+      quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
+      angularVelocity(0.0, 0.0, 0.0),
+      mass(260.0),                    // Default mass (kg)
+      inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
+      dragCoefficient(2.2),           // Typical satellite drag coefficient
+      crossSectionalArea(10.0),       // Default area (m²)
+      name(name),
+      modelName("starlink")
 {
 }
 
@@ -63,9 +94,51 @@ bool Spacecraft::removeComponent(const std::string &name)
   return true;
 }
 
-void Spacecraft::update(double deltaTime)
+glm::dvec3 Spacecraft::calculateAcceleration(const glm::dvec3 &pos,
+                                             const glm::dvec3 &vel,
+                                             const glm::dvec3 &earthCenter,
+                                             double earthMass,
+                                             const glm::dvec3 &sunPos,
+                                             const glm::dvec3 &moonPos) const
 {
-  // Update all components first
+  // Calculate all acceleration components using modular gravity and environmental models
+
+  // Earth gravity: point mass + non-spherical perturbations (J2, J3, J4)
+  glm::dvec3 gravAccelEarth = GravityModel::calculatePointMassGravity(pos, earthCenter, earthMass);
+  glm::dvec3 gravAccelEarthJ = GravityModel::calculateZonalHarmonics(pos, earthCenter, earthMass);
+
+  // Third-body perturbations (Moon and Sun) using differential gravity
+  glm::dvec3 gravAccelMoon = GravityModel::calculateThirdBodyPerturbation(pos, earthCenter, moonPos, MOON_MASS);
+  glm::dvec3 gravAccelSun = GravityModel::calculateThirdBodyPerturbation(pos, earthCenter, sunPos, SUN_MASS);
+
+  // Non-gravitational perturbations
+  glm::dvec3 dragAccel = EnvironmentalModels::calculateAtmosphericDrag(pos, vel, earthCenter, mass, crossSectionalArea, dragCoefficient);
+  glm::dvec3 srpAccel = EnvironmentalModels::calculateSolarRadiationPressure(pos, sunPos, earthCenter, mass, crossSectionalArea, reflectivity);
+
+  // Total acceleration (all forces combined)
+  // Earth: point mass + J2/J3/J4 perturbations
+  // Third bodies: Moon + Sun
+  // Non-gravitational: Drag + Solar radiation pressure
+  return gravAccelEarth + gravAccelEarthJ + gravAccelMoon + gravAccelSun + dragAccel + srpAccel;
+}
+
+void Spacecraft::update(double deltaTime,
+                        const glm::dvec3 &earthCenter,
+                        double earthMass,
+                        const glm::dvec3 &sunPosition,
+                        const glm::dvec3 &moonPosition)
+{
+  // ========== ORBITAL DYNAMICS ==========
+  // Integrate position and velocity using RK4
+  auto accelFunc = [this, &earthCenter, earthMass, &sunPosition, &moonPosition](const glm::dvec3 &pos, const glm::dvec3 &vel) -> glm::dvec3
+  {
+    return calculateAcceleration(pos, vel, earthCenter, earthMass, sunPosition, moonPosition);
+  };
+
+  RK4Integrator::integratePositionVelocity(position, velocity, deltaTime, accelFunc);
+
+  // ========== COMPONENT UPDATES ==========
+  // Update all components
   for (auto &comp : components)
   {
     if (comp->enabled)
@@ -73,34 +146,6 @@ void Spacecraft::update(double deltaTime)
       comp->update(deltaTime);
     }
   }
-
-  // Physics integration would go here in a full implementation
-  // For now, this is a placeholder for the basic structure
-
-  // Example of what physics update would look like:
-  // 1. Aggregate forces and torques from actuators
-  // glm::dvec3 totalForce = aggregateForces();
-  // glm::dvec3 totalTorque = aggregateTorques();
-  //
-  // 2. Add external forces (gravity, drag, SRP, etc.)
-  // totalForce += calculateGravity();
-  // totalForce += calculateDrag();
-  //
-  // 3. Integrate translational dynamics
-  // glm::dvec3 acceleration = totalForce / mass;
-  // velocity += acceleration * deltaTime;
-  // position += velocity * deltaTime;
-  //
-  // 4. Integrate rotational dynamics (Euler's equation)
-  // glm::dvec3 angularAccel = glm::inverse(inertiaMatrix) *
-  //                           (totalTorque - glm::cross(angularVelocity, inertiaMatrix * angularVelocity));
-  // angularVelocity += angularAccel * deltaTime;
-  //
-  // 5. Update quaternion from angular velocity
-  // glm::dquat omegaQuat(0.0, angularVelocity.x, angularVelocity.y, angularVelocity.z);
-  // glm::dquat qdot = 0.5 * omegaQuat * quaternion;
-  // quaternion += qdot * deltaTime;
-  // quaternion = glm::normalize(quaternion);
 }
 
 glm::dvec3 Spacecraft::aggregateForces() const

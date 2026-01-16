@@ -3,7 +3,7 @@
 #include "Universe.h"
 #include "Simulation.h"
 #include "Orbit.h"
-#include "Satellite.h"
+#include "Spacecraft.h"
 #include "Constants.h"
 #include "GroundStationData.h"
 #include <cstdio>
@@ -38,7 +38,7 @@ void GPSScenario::setup(Universe &universe)
       std::string satName = "GPS-" + std::to_string(plane * satellitesPerPlane + sat + 1);
 
       // Create satellite
-      universe.addSatelliteWithOrbit(orbit, plane, sat, satName);
+      universe.addSpacecraftWithOrbit(orbit, satName);
     }
   }
 

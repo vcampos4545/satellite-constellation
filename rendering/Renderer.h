@@ -39,14 +39,14 @@ public:
 
   // Main render function - renders entire scene
   void render(const Universe &universe, const Camera &camera, int windowWidth, int windowHeight,
-              const class VisualizationState &vizState, const Satellite *selectedSatellite = nullptr);
+              class VisualizationState &vizState, const Spacecraft *selectedSpacecraft = nullptr);
 
   // Render individual components
   void renderStarBackground(const Camera &camera);
   void renderCelestialBody(const std::shared_ptr<CelestialBody> &body, bool isEarth, bool isMoon, bool isSun);
-  void renderSatellites(const std::vector<std::shared_ptr<Satellite>> &satellites,
-                        const class VisualizationState &vizState,
-                        const Satellite *selectedSatellite = nullptr);
+  void renderSpacecrafts(const std::vector<std::shared_ptr<Spacecraft>> &spacecrafts,
+                         class VisualizationState &vizState,
+                         const Spacecraft *selectedSpacecraft = nullptr);
   void renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations);
   void renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight);
 
@@ -69,8 +69,8 @@ private:
   Cube cubeMesh;
   LineRenderer lineRenderer;
 
-  // Dynamically loaded satellite models (key = model name from folder)
-  std::map<std::string, std::shared_ptr<OBJMesh>> satelliteModels;
+  // Dynamically loaded models (key = model name from folder)
+  std::map<std::string, std::shared_ptr<OBJMesh>> objModels;
 
   // Textures
   Texture earthTexture;
@@ -89,16 +89,25 @@ private:
 
   // Helper functions
   void loadAllModels();
-  std::string getSatelliteModelName(SatelliteType type) const;
 
-  // ========== SATELLITE RENDER HELPER FUNCTIONS ==========
-  // Individual satellite rendering functions for better code organization
-  void renderSatelliteGeometry(const std::shared_ptr<Satellite> &satellite);
+  // ========== SPACECRAFT RENDER HELPER FUNCTIONS ==========
+  // Individual spacecraft rendering functions for better code organization
+  void renderSpacecraftGeometry(const std::shared_ptr<Spacecraft> &spacecraft);
 
   // Generic line rendering helper (handles both dvec3 and vec3 vertices)
   void renderLine(const std::vector<glm::dvec3> &vertices, const glm::vec3 &color, float lineWidth = 2.0f);
   void renderLine(const std::vector<glm::vec3> &vertices, const glm::vec3 &color, float lineWidth = 2.0f);
-  void renderSatelliteAttitudeVector(const std::shared_ptr<Satellite> &satellite);
+  void renderArrow(
+      const glm::vec3 &start,
+      const glm::vec3 &end,
+      const glm::vec3 &color,
+      float lineWidth,
+      float headLength = 10e3f,
+      float headRadius = 5e3f,
+      int coneSegments = 16);
+  void renderSpacecraftAttitudeVector(const std::shared_ptr<Spacecraft> &spacecraft);
+  void renderSpacecraftVelocityVector(const std::shared_ptr<Spacecraft> &spacecraft);
+  void renderSpacecraftAxes(const std::shared_ptr<Spacecraft> &spacecraft);
 };
 
 #endif // RENDERER_H

@@ -3,7 +3,7 @@
 #include "Universe.h"
 #include "Simulation.h"
 #include "Orbit.h"
-#include "Satellite.h"
+#include "Spacecraft.h"
 #include "Constants.h"
 #include "GroundStationData.h"
 #include <cstdio>
@@ -19,11 +19,11 @@ void GEOScenario::setup(Universe &universe)
   // GEO constellation: 3 satellites evenly spaced around equator
   const double GEO_ALTITUDE = 35.786e6;
   const double semiMajorAxis = EARTH_EQUATORIAL_RADIUS + GEO_ALTITUDE;
-  const int numSatellites = 3;
+  const int numSpacecrafts = 3;
 
-  for (int sat = 0; sat < numSatellites; ++sat)
+  for (int sat = 0; sat < numSpacecrafts; ++sat)
   {
-    double trueAnomaly = (2.0 * PI * sat) / numSatellites;
+    double trueAnomaly = (2.0 * PI * sat) / numSpacecrafts;
 
     // Create orbit object (circular, equatorial orbit: e=0, i=0, w=0)
     Orbit orbit{semiMajorAxis, 0.0, 0.0, 0.0, 0.0, trueAnomaly};
@@ -31,7 +31,7 @@ void GEOScenario::setup(Universe &universe)
     std::string satName = "GEO-" + std::to_string(sat + 1);
 
     // Create satellite
-    universe.addSatelliteWithOrbit(orbit, -4, sat, satName);
+    universe.addSpacecraftWithOrbit(orbit, satName);
   }
 
   // Add ground stations at major cities

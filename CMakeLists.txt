@@ -71,7 +71,7 @@ add_executable(simulation
     core/Simulation.cpp
 
     # Dynamics
-    dynamics/bodies/Satellite.cpp
+    dynamics/bodies/Spacecraft.cpp
     dynamics/bodies/CelestialBody.cpp
     dynamics/bodies/GroundStation.cpp
     dynamics/Universe.cpp
@@ -100,6 +100,7 @@ add_executable(simulation
     scenarios/GEOScenario.cpp
     scenarios/MolniyaScenario.cpp
 
+    fsw/PIDController.cpp
 
     # Rendering
     rendering/Renderer.cpp

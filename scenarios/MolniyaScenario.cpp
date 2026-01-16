@@ -3,7 +3,7 @@
 #include "Universe.h"
 #include "Simulation.h"
 #include "Orbit.h"
-#include "Satellite.h"
+#include "Spacecraft.h"
 #include "Constants.h"
 #include "GroundStationData.h"
 #include <cstdio>
@@ -18,15 +18,15 @@ void MolniyaScenario::setup(Universe &universe)
   printf("\033[36m[Molniya] Setting up scenario...\033[0m\n");
 
   // Molniya orbit parameters
-  const double semiMajorAxis = 26.6e6;                  // Semi-major axis (meters from Earth center)
-  const double eccentricity = 0.72;                     // Highly elliptical
-  const double inclination = 63.4 * PI / 180.0;         // Critical inclination (radians)
-  const double argOfPerigee = 270.0 * PI / 180.0;       // Apogee over northern hemisphere
-  const int numSatellites = 3;
+  const double semiMajorAxis = 26.6e6;            // Semi-major axis (meters from Earth center)
+  const double eccentricity = 0.72;               // Highly elliptical
+  const double inclination = 63.4 * PI / 180.0;   // Critical inclination (radians)
+  const double argOfPerigee = 270.0 * PI / 180.0; // Apogee over northern hemisphere
+  const int numSpacecrafts = 3;
 
-  for (int sat = 0; sat < numSatellites; ++sat)
+  for (int sat = 0; sat < numSpacecrafts; ++sat)
   {
-    double raan = (2.0 * PI * sat) / numSatellites;
+    double raan = (2.0 * PI * sat) / numSpacecrafts;
     double trueAnomaly = 90.0 * PI / 180.0; // Start at apogee
 
     // Create orbit object
@@ -35,7 +35,7 @@ void MolniyaScenario::setup(Universe &universe)
     std::string satName = "Molniya-" + std::to_string(sat + 1);
 
     // Create satellite
-    universe.addSatelliteWithOrbit(orbit, -2, sat, satName);
+    universe.addSpacecraftWithOrbit(orbit, satName);
   }
 
   // Add ground stations at major cities
