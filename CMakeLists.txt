@@ -92,6 +92,7 @@ add_executable(simulation
     # Components
     dynamics/components/IMU.cpp
     dynamics/components/SolarPanel.cpp
+    dynamics/components/GPS.cpp
 
     # Scenarios
     scenarios/SSOTestScenario.cpp
