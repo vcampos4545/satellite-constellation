@@ -10,38 +10,6 @@
 #include "Component.h"
 #include "Orbit.h"
 
-// Forward declarations
-class FlightSoftwareTask;
-
-// Spacecraft types for rendering and identification
-enum class SpacecraftType
-{
-  DEFAULT,    // Generic spacecraft with simple geometry
-  CUBESAT_1U, // 1U CubeSat (10cm cube)
-  CUBESAT_2U, // 2U CubeSat (10x10x20cm)
-  STARLINK    // SpaceX Starlink satellite
-};
-
-// Attitude control modes
-enum class AttitudeControlMode
-{
-  NONE,              // No active control (tumbling)
-  DETUMBLE,          // Reduce angular velocity to zero using magnetorquers
-  NADIR_POINTING,    // Point one axis toward Earth center
-  SUN_POINTING,      // Point one axis toward Sun
-  VELOCITY_POINTING, // Point one axis along velocity vector
-  INERTIAL_HOLD,     // Maintain fixed orientation in inertial space
-  TARGET_TRACKING    // Point toward a specific target
-};
-
-// Control algorithm types for reaction wheels
-enum class ControlAlgorithm
-{
-  PID, // PID controller (default)
-  LQR, // Linear Quadratic Regulator
-  MPC  // Model Predictive Control
-};
-
 /**
  * Spacecraft Class
  *
