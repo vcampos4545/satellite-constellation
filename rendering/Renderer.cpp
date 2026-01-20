@@ -286,15 +286,15 @@ void Renderer::renderArrow(
     const glm::vec3 &start,
     const glm::vec3 &end,
     const glm::vec3 &color,
-    float lineWidth,
-    float headLength,
-    float headRadius,
-    int coneSegments)
+    float lineWidth)
 {
   glm::vec3 dir = end - start;
   float length = glm::length(dir);
   if (length <= 0.0001f)
     return;
+
+  float headLength = length / 10.0f;
+  float headRadius = headLength / 3.0f;
 
   glm::vec3 dirNorm = glm::normalize(dir);
 
@@ -316,6 +316,7 @@ void Renderer::renderArrow(
   // ---- Draw cone edges ----
   std::vector<glm::vec3> coneLines;
 
+  int coneSegments = 30;
   for (int i = 0; i < coneSegments; ++i)
   {
     float a0 = (float)i / coneSegments * glm::two_pi<float>();
@@ -454,7 +455,7 @@ void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int w
   glGetIntegerv(GL_VIEWPORT, viewport);
 
   // Set viewport for axis display in bottom left corner
-  int axisSize = 350; // Size of the axis display area (200x200 pixels)
+  int axisSize = 350; // Size of the axis display area
   int margin = 10;    // Margin from the corner
   glViewport(margin, margin, axisSize, axisSize);
 
@@ -469,34 +470,23 @@ void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int w
   glm::mat4 cameraView = camera.getViewMatrix();
   glm::mat4 axisView = glm::mat4(glm::mat3(cameraView)); // Remove translation component
 
-  // Set up shader
+  // Set up shader (renderArrow uses lineShader internally)
   lineShader->use();
   lineShader->setMat4("view", axisView);
   lineShader->setMat4("projection", projection);
 
-  // Increase line width for better visibility
-  glLineWidth(10.0f);
+  // Draw coordinate axes as arrows
+  glm::vec3 origin(0.0f, 0.0f, 0.0f);
+  float lineWidth = 3.0f;
 
-  // Draw X axis (red)
-  std::vector<glm::vec3> xAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f)};
-  lineRenderer.setVertices(xAxis);
-  lineShader->setVec3("lineColor", glm::vec3(1.0f, 0.0f, 0.0f)); // Red
-  lineRenderer.draw();
+  // X axis (red)
+  renderArrow(origin, glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), lineWidth);
 
-  // Draw Y axis (green)
-  std::vector<glm::vec3> yAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)};
-  lineRenderer.setVertices(yAxis);
-  lineShader->setVec3("lineColor", glm::vec3(0.0f, 1.0f, 0.0f)); // Green
-  lineRenderer.draw();
+  // Y axis (green)
+  renderArrow(origin, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), lineWidth);
 
-  // Draw Z axis (blue)
-  std::vector<glm::vec3> zAxis = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)};
-  lineRenderer.setVertices(zAxis);
-  lineShader->setVec3("lineColor", glm::vec3(0.0f, 0.0f, 1.0f)); // Blue
-  lineRenderer.draw();
-
-  // Reset line width
-  glLineWidth(1.0f);
+  // Z axis (blue)
+  renderArrow(origin, glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 0.0f, 1.0f), lineWidth);
 
   // Re-enable depth test
   glEnable(GL_DEPTH_TEST);

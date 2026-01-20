@@ -88,10 +88,7 @@ private:
       const glm::vec3 &start,
       const glm::vec3 &end,
       const glm::vec3 &color,
-      float lineWidth,
-      float headLength = 10e3f,
-      float headRadius = 5e3f,
-      int coneSegments = 16);
+      float lineWidth);
   void renderSpacecraftAttitudeVector(const std::shared_ptr<Spacecraft> &spacecraft);
   void renderSpacecraftVelocityVector(const std::shared_ptr<Spacecraft> &spacecraft);
   void renderSpacecraftAxes(const std::shared_ptr<Spacecraft> &spacecraft);
