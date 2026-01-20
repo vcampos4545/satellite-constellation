@@ -28,10 +28,7 @@ class Spacecraft
 public:
   Spacecraft();
   Spacecraft(const glm::dvec3 &position, const glm::dvec3 &velocity);
-  Spacecraft(const Orbit &orbit,
-             const glm::dvec3 &initPos,
-             const glm::dvec3 &initVel,
-             const std::string &name = "");
+  Spacecraft(const Orbit &orbit, const std::string &name = "");
   ~Spacecraft();
 
   // ========== PHYSICS STATE GETTERS ==========
@@ -186,6 +183,17 @@ public:
    * @return Total torque in body frame (Newton-meters)
    */
   glm::dvec3 aggregateTorques() const;
+
+  /**
+   * Calculate angular acceleration from applied torque
+   * Uses Euler's rotation equation: I·ω' = τ - ω × (I·ω)
+   *
+   * @param torque Applied torque in body frame (N·m)
+   * @param omega Current angular velocity in body frame (rad/s)
+   * @return Angular acceleration in body frame (rad/s²)
+   */
+  glm::dvec3 calculateAngularAcceleration(const glm::dvec3 &torque,
+                                          const glm::dvec3 &omega) const;
 
   // ========== UTILITY ==========
 

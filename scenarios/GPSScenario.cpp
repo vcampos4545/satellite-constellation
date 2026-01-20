@@ -38,7 +38,7 @@ void GPSScenario::setup(Universe &universe)
       std::string satName = "GPS-" + std::to_string(plane * satellitesPerPlane + sat + 1);
 
       // Create satellite
-      universe.addSpacecraftWithOrbit(orbit, satName);
+      universe.addSpacecraft(orbit, satName);
     }
   }
 

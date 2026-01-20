@@ -4,6 +4,7 @@
 #include "MathUtils.h"
 #include "GroundStation.h"
 #include "GroundStationData.h"
+#include "SpacecraftEnvironment.h"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -19,9 +20,6 @@ Universe::Universe()
   initializeEarth();
   initializeSun();
   initializeMoon();
-
-  // Scenarios configure the universe via setup() method
-  // No spacecraft or ground stations are added here by default
 }
 
 void Universe::initializeEarth()
@@ -35,6 +33,7 @@ void Universe::initializeEarth()
       EARTH_RADIUS,
       glm::vec3(0.0f, 0.0f, 1.0f), // rotate around Z axis
       EARTH_ROTATION_ANGULAR_VELOCITY);
+  earth->setTextureName("earth"); // Use earth texture for rendering
   bodies.push_back(earth);
 }
 
@@ -61,6 +60,7 @@ void Universe::initializeSun()
       SUN_RADIUS,
       glm::vec3(0.0f, 0.0f, 0.0f), // No rotation axis for simplicity
       0.0);                        // No rotation for simplicity
+  sun->setTextureName("sun");      // Use sun texture for rendering
   bodies.push_back(sun);
 }
 
@@ -121,21 +121,39 @@ void Universe::initializeMoon()
       MOON_ROTATION_ANGULAR_VELOCITY);
   moon->setVelocity(moonVel);
   moon->enablePhysicsUpdate(true); // Enable physics simulation for the moon
+  moon->setTextureName("moon");    // Use moon texture for rendering
   bodies.push_back(moon);
 }
 
-void Universe::addSpacecraftWithOrbit(
+std::shared_ptr<Spacecraft> Universe::addSpacecraft(
     const Orbit &orbit,
     const std::string &name)
 {
-  // Convert orbital elements to Cartesian position and velocity
-  glm::dvec3 position, velocity;
-  orbit.toCartesian(position, velocity, G * EARTH_MASS);
-
-  // Create spacecraft with computed position/velocity
-  auto sc = std::make_shared<Spacecraft>(orbit, position, velocity, name);
-
+  // Create spacecraft from orbit (position/velocity computed internally)
+  auto sc = std::make_shared<Spacecraft>(orbit, name);
   spacecraft.push_back(sc);
+  return sc;
+}
+
+FlightSoftware *Universe::createFlightSoftware(std::shared_ptr<Spacecraft> spacecraft)
+{
+  // Create flight software manager for this spacecraft
+  auto fsw = std::make_unique<FlightSoftware>(spacecraft.get());
+  FlightSoftware *ptr = fsw.get();
+  flightSoftware.push_back(std::move(fsw));
+  return ptr;
+}
+
+FlightSoftware *Universe::getFlightSoftware(Spacecraft *spacecraft)
+{
+  for (auto &fsw : flightSoftware)
+  {
+    if (fsw->getSpacecraft() == spacecraft)
+    {
+      return fsw.get();
+    }
+  }
+  return nullptr;
 }
 
 void Universe::addGroundStation(const std::string name, double latitude, double longitude)
@@ -173,7 +191,7 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
     // ========== UPDATE ALL SPACECRAFT ==========
     for (auto &sc : spacecraft)
     {
-      // Update spacecraft (handles orbital dynamics and components)
+      // Update spacecraft physics (handles orbital dynamics and components)
       sc->update(stepTime, earth->getPosition(), earth->getMass(), sun->getPosition(), moon->getPosition());
     }
 
@@ -185,6 +203,23 @@ void Universe::update(double deltaTime, double maxPhysicsStep)
   for (auto &groundStation : groundStations)
   {
     groundStation->update(earth->getRotation(), earth->getRotationAxis());
+  }
+
+  // ========== UPDATE FLIGHT SOFTWARE ==========
+  // Create environment data for flight software
+  SpacecraftEnvironment environment;
+  environment.earthPosition = earth->getPosition();
+  environment.sunPosition = sun->getPosition();
+  environment.moonPosition = moon->getPosition();
+  environment.groundStations = &groundStations;
+  environment.otherSpacecraft = &spacecraft;
+
+  // Update each flight software system with environment data
+  for (size_t i = 0; i < flightSoftware.size(); ++i)
+  {
+    // Set self index to exclude own spacecraft from collision checks
+    environment.selfIndex = i;
+    flightSoftware[i]->update(deltaTime, environment);
   }
 }
 

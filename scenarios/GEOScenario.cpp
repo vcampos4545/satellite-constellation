@@ -31,7 +31,7 @@ void GEOScenario::setup(Universe &universe)
     std::string satName = "GEO-" + std::to_string(sat + 1);
 
     // Create satellite
-    universe.addSpacecraftWithOrbit(orbit, satName);
+    universe.addSpacecraft(orbit, satName);
   }
 
   // Add ground stations at major cities

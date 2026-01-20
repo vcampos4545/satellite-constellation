@@ -30,6 +30,7 @@ include_directories(${CMAKE_SOURCE_DIR}/dynamics/integrators)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/gravityModels)
 include_directories(${CMAKE_SOURCE_DIR}/dynamics/environmentalModels)
 include_directories(${CMAKE_SOURCE_DIR}/fsw)
+include_directories(${CMAKE_SOURCE_DIR}/fsw/adcs)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/power)
 include_directories(${CMAKE_SOURCE_DIR}/fsw/stationkeeping)
 include_directories(${CMAKE_SOURCE_DIR}/rendering)
@@ -93,6 +94,7 @@ add_executable(simulation
     dynamics/components/IMU.cpp
     dynamics/components/SolarPanel.cpp
     dynamics/components/GPS.cpp
+    dynamics/components/ReactionWheel.cpp
 
     # Scenarios
     scenarios/SSOTestScenario.cpp
@@ -101,7 +103,10 @@ add_executable(simulation
     scenarios/GEOScenario.cpp
     scenarios/MolniyaScenario.cpp
 
+    # Flight Software
+    fsw/FlightSoftware.cpp
     fsw/PIDController.cpp
+    fsw/adcs/ADCSController.cpp
 
     # Rendering
     rendering/Renderer.cpp

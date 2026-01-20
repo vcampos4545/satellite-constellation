@@ -38,7 +38,7 @@ void StarlinkScenario::setup(Universe &universe)
       std::string satName = "Starlink-" + std::to_string(plane * satellitesPerPlane + sat + 1);
 
       // Create satellite
-      universe.addSpacecraftWithOrbit(
+      universe.addSpacecraft(
           orbit,
           satName);
     }

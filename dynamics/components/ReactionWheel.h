@@ -29,7 +29,17 @@ class ReactionWheel : public Actuator
 {
 public:
   /**
-   * Constructor
+   * Constructor (for use with addComponent template)
+   * @param maxTorque Maximum torque capability (N·m)
+   * @param maxMomentum Maximum momentum storage (N·m·s)
+   * @param spinAxis Wheel spin axis in body frame (normalized)
+   */
+  ReactionWheel(double maxTorque,
+                double maxMomentum,
+                const glm::dvec3 &spinAxis = glm::dvec3(1.0, 0.0, 0.0));
+
+  /**
+   * Constructor with name
    * @param name Component name (e.g., "RW+X", "RW-Y")
    * @param maxTorque Maximum torque capability (N·m)
    * @param maxMomentum Maximum momentum storage (N·m·s)

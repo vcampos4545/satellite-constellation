@@ -4,6 +4,9 @@
 #include "Simulation.h"
 #include "Orbit.h"
 #include "Spacecraft.h"
+#include "ReactionWheel.h"
+#include "ADCSController.h"
+#include "GroundStationData.h"
 #include "Constants.h"
 #include <cstdio>
 
@@ -27,15 +30,36 @@ void SSOTestScenario::setup(Universe &universe)
 
   Orbit ssoOrbit{semiMajorAxis, eccentricity, inclination, raan, argOfPerigee, trueAnomaly};
 
-  // Add satellite to universe
-  universe.addSpacecraftWithOrbit(
-      ssoOrbit,
-      "SSO-Sat-1");
+  // Add satellite to universe and get spacecraft pointer
+  auto sc = universe.addSpacecraft(ssoOrbit, "SSO-Sat-1");
+
+  // Add 3 reaction wheels (one for each axis)
+  auto rwX = sc->addComponent<ReactionWheel>("RW-X", 0.1, 10.0, glm::dvec3(1.0, 0.0, 0.0));
+  auto rwY = sc->addComponent<ReactionWheel>("RW-Y", 0.1, 10.0, glm::dvec3(0.0, 1.0, 0.0));
+  auto rwZ = sc->addComponent<ReactionWheel>("RW-Z", 0.1, 10.0, glm::dvec3(0.0, 0.0, 1.0));
+
+  // Create flight software for the spacecraft
+  auto fsw = universe.createFlightSoftware(sc);
+
+  // Add ADCS module and configure it
+  auto adcs = fsw->addModule<ADCSController>();
+  adcs->setMode(ADCSController::Mode::NADIR_POINTING);
+
+  // Add ground stations at major cities
+  const int numCities = sizeof(MAJOR_CITIES) / sizeof(MAJOR_CITIES[0]);
+  for (int i = 0; i < numCities; ++i)
+  {
+    const City &city = MAJOR_CITIES[i];
+    universe.addGroundStation(city.name, city.latitude, city.longitude);
+  }
 
   printf("\033[36m[SSO Test] Created satellite 'SSO-Sat-1'\033[0m\n");
+  printf("\033[36m[SSO Test]   Added 3 reaction wheels (0.1 N·m max torque, 10.0 N·m·s max momentum)\033[0m\n");
+  printf("\033[36m[SSO Test]   ADCS Mode: Ground Station Pointing\033[0m\n");
   printf("\033[36m[SSO Test]   Altitude: %.1f km\033[0m\n", altitude / 1000.0);
   printf("\033[36m[SSO Test]   Inclination: 98.0°\033[0m\n");
   printf("\033[36m[SSO Test]   Orbital period: ~98.8 minutes\033[0m\n");
+  printf("\033[36m[SSO Test] Added %d ground stations\033[0m\n", numCities);
 
   printf("\033[32m[SSO Test] Setup complete!\033[0m\n");
 }

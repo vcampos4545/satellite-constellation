@@ -36,21 +36,19 @@ Spacecraft::Spacecraft(const glm::dvec3 &pos, const glm::dvec3 &vel)
 {
 }
 
-Spacecraft::Spacecraft(const Orbit &orbit,
-                       const glm::dvec3 &initPos,
-                       const glm::dvec3 &initVel,
-                       const std::string &name)
-    : position(initPos),
-      velocity(initVel),
-      quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
+Spacecraft::Spacecraft(const Orbit &orbit, const std::string &name)
+    : quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
       angularVelocity(0.0, 0.0, 0.0),
       mass(260.0),                    // Default mass (kg)
       inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
       dragCoefficient(2.2),           // Typical satellite drag coefficient
       crossSectionalArea(10.0),       // Default area (m²)
+      reflectivity(1.3),              // Default reflectivity
       name(name),
       modelName("starlink")
 {
+  // Compute initial position and velocity from orbital elements
+  orbit.toCartesian(position, velocity, G * EARTH_MASS);
 }
 
 Spacecraft::~Spacecraft()
@@ -137,6 +135,37 @@ void Spacecraft::update(double deltaTime,
 
   RK4Integrator::integratePositionVelocity(position, velocity, deltaTime, accelFunc);
 
+  // ========== ROTATIONAL DYNAMICS ==========
+  // Aggregate torques from all actuators (reaction wheels, magnetorquers, etc.)
+  glm::dvec3 totalTorque = aggregateTorques();
+
+  // Integrate angular velocity using RK4
+  // Function to compute angular acceleration at a given state
+  auto angularAccelFunc = [this, totalTorque](const glm::dvec3 &omega) -> glm::dvec3
+  {
+    return calculateAngularAcceleration(totalTorque, omega);
+  };
+
+  // RK4 integration for angular velocity
+  glm::dvec3 k1 = angularAccelFunc(angularVelocity);
+  glm::dvec3 k2 = angularAccelFunc(angularVelocity + k1 * (deltaTime / 2.0));
+  glm::dvec3 k3 = angularAccelFunc(angularVelocity + k2 * (deltaTime / 2.0));
+  glm::dvec3 k4 = angularAccelFunc(angularVelocity + k3 * deltaTime);
+
+  angularVelocity += (k1 + 2.0 * k2 + 2.0 * k3 + k4) * (deltaTime / 6.0);
+
+  // Integrate quaternion from angular velocity
+  // Quaternion derivative: q' = 0.5 * ω_quat * q
+  // Where ω_quat = [0, ωx, ωy, ωz] (pure quaternion from angular velocity)
+  glm::dquat omegaQuat(0.0, angularVelocity.x, angularVelocity.y, angularVelocity.z);
+  glm::dquat qdot = 0.5 * omegaQuat * quaternion;
+
+  // Update quaternion using Euler integration (sufficient for small timesteps)
+  quaternion += qdot * deltaTime;
+
+  // Normalize quaternion to prevent drift
+  quaternion = glm::normalize(quaternion);
+
   // ========== COMPONENT UPDATES ==========
   // Update all components
   for (auto &comp : components)
@@ -186,4 +215,25 @@ glm::dvec3 Spacecraft::aggregateTorques() const
   }
 
   return totalTorque;
+}
+
+glm::dvec3 Spacecraft::calculateAngularAcceleration(const glm::dvec3 &torque,
+                                                    const glm::dvec3 &omega) const
+{
+  // Euler's rotation equation: I·ω' = τ - ω × (I·ω)
+  // Rearranging: ω' = I⁻¹ · (τ - ω × (I·ω))
+
+  // Calculate I·ω (angular momentum)
+  glm::dvec3 angularMomentum = inertiaMatrix * omega;
+
+  // Calculate gyroscopic torque: ω × (I·ω)
+  glm::dvec3 gyroscopicTorque = glm::cross(omega, angularMomentum);
+
+  // Net torque: τ - ω × (I·ω)
+  glm::dvec3 netTorque = torque - gyroscopicTorque;
+
+  // Angular acceleration: I⁻¹ · netTorque
+  glm::dvec3 angularAccel = glm::inverse(inertiaMatrix) * netTorque;
+
+  return angularAccel;
 }

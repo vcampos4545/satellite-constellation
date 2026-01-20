@@ -1,6 +1,23 @@
 #include "ReactionWheel.h"
 #include <cmath>
 
+ReactionWheel::ReactionWheel(double maxTorque,
+                             double maxMomentum,
+                             const glm::dvec3 &spinAxis)
+    : Actuator(),
+      maxTorque(maxTorque),
+      maxMomentum(maxMomentum),
+      spinAxis(glm::normalize(spinAxis)),
+      currentMomentum(0.0),
+      commandedTorque(0.0),
+      actualTorque(0.0),
+      wheelSpeed(0.0),
+      powerConsumption(0.0),
+      idlePower(2.0),           // 2W idle power (typical)
+      torquePowerCoeff(10.0)    // 10W per N·m (typical efficiency)
+{
+}
+
 ReactionWheel::ReactionWheel(const std::string &name,
                              double maxTorque,
                              double maxMomentum,
