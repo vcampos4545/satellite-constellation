@@ -63,7 +63,7 @@ bool Texture::load(const std::string &path)
   stbi_image_free(data);
 
   loaded = true;
-  printf("\033[32mSuccessfully loaded texture: %s (%dx%d, %d channels)\033[0m\n",
+  printf("\033[32mLoaded texture: %s (%dx%d, %d channels)\033[0m\n",
          path.c_str(), width, height, channels);
 
   return true;

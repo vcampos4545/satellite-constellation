@@ -17,11 +17,13 @@ public:
   float getRotation() const { return rotation; }
   glm::vec3 getRotationAxis() const { return rotationAxis; }
   bool isPhysicsEnabled() const { return enablePhysics; }
+  std::string getTextureName() const { return textureName; }
 
   // Setters
   void setPosition(const glm::dvec3 &pos) { position = pos; }
   void setVelocity(const glm::dvec3 &vel) { velocity = vel; }
   void enablePhysicsUpdate(bool enable) { enablePhysics = enable; }
+  void setTextureName(std::string name) { textureName = name; }
 
   // Physics update (for bodies with physics enabled, like Moon)
   void update(double deltaTime, const std::vector<std::shared_ptr<CelestialBody>> &allBodies);
@@ -38,6 +40,7 @@ private:
   glm::vec3 rotationAxis;         // Normalized axis of rotation (default: Y-axis)
   double rotationAngularVelocity; // Angular velocity in rad/s
   bool enablePhysics;             // Whether to update physics (position/velocity)
+  std::string textureName;        // Texure name for sphere rendering
   void recordPosition()
   {
     // ========== ORBIT PATH HISTORY ==========

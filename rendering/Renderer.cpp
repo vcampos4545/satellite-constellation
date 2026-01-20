@@ -26,10 +26,6 @@ static void buildOrthonormalBasis(
 
 Renderer::Renderer()
     : sphereMesh(1.0f, 30, 30), // Unit sphere with 30x30 tessellation
-      earthTextureLoaded(false),
-      moonTextureLoaded(false),
-      sunTextureLoaded(false),
-      starsTextureLoaded(false),
       initialized(false)
 {
 }
@@ -50,35 +46,8 @@ bool Renderer::initialize()
   sphereShader = std::make_unique<Shader>("shaders/sphere.vert", "shaders/sphere.frag");
   lineShader = std::make_unique<Shader>("shaders/line.vert", "shaders/line.frag");
 
-  // Load Earth texture
-  earthTextureLoaded = earthTexture.load("textures/earth.jpg");
-  if (!earthTextureLoaded)
-  {
-    std::cout << "Note: Earth texture not found. Using solid color. Place an Earth texture at 'textures/earth.jpg'" << std::endl;
-  }
-
-  // Load Moon texture
-  moonTextureLoaded = moonTexture.load("textures/moon.jpg");
-  if (!moonTextureLoaded)
-  {
-    std::cout << "Note: Moon texture not found. Using solid color. Place a Moon texture at 'textures/moon.jpg'" << std::endl;
-  }
-
-  // Load Sun texture
-  sunTextureLoaded = sunTexture.load("textures/sun.jpg");
-  if (!sunTextureLoaded)
-  {
-    std::cout << "Note: Sun texture not found. Using solid color. Place a Sun texture at 'textures/sun.jpg'" << std::endl;
-  }
-
-  // Load Stars texture for background
-  starsTextureLoaded = starsTexture.load("textures/stars.jpg");
-  if (!starsTextureLoaded)
-  {
-    std::cout << "Note: Stars texture not found. Using black background. Place a stars texture at 'textures/stars.jpg'" << std::endl;
-  }
-
-  // Dynamically load all satellite models from models/ directory
+  // Load textures and models
+  loadAllTextures();
   loadAllModels();
 
   initialized = true;
@@ -118,9 +87,9 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
   sphereShader->setVec3("lightDir", lightDir);
 
   // Render celestial bodies
-  renderCelestialBody(universe.getEarth(), true, false, false);
-  renderCelestialBody(universe.getMoon(), false, true, false);
-  renderCelestialBody(universe.getSun(), false, false, true);
+  renderCelestialBody(universe.getEarth());
+  renderCelestialBody(universe.getMoon());
+  renderCelestialBody(universe.getSun());
 
   // Render ground stations
   renderGroundStations(universe.getGroundStations());
@@ -142,7 +111,8 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
 
 void Renderer::renderStarBackground(const Camera &camera)
 {
-  if (!starsTextureLoaded)
+  auto starsTexture = textures.find("stars");
+  if (starsTexture == textures.end())
     return;
 
   // Disable depth writing so stars are always in the background
@@ -165,7 +135,7 @@ void Renderer::renderStarBackground(const Camera &camera)
   sphereShader->setVec3("objectColor", glm::vec3(0.25f, 0.25f, 0.25f)); // Dimmed significantly
 
   // Bind stars texture
-  starsTexture.bind(0);
+  starsTexture->second->bind(0);
   sphereShader->setInt("textureSampler", 0);
   sphereShader->setBool("useTexture", true);
 
@@ -179,7 +149,7 @@ void Renderer::renderStarBackground(const Camera &camera)
   glDepthMask(GL_TRUE);
 }
 
-void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body, bool isEarth, bool isMoon, bool isSun)
+void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body)
 {
   if (!body)
     return;
@@ -189,70 +159,44 @@ void Renderer::renderCelestialBody(const std::shared_ptr<CelestialBody> &body, b
   glm::mat4 model = glm::mat4(1.0f);
   model = glm::translate(model, glm::vec3(body->getPosition()));
 
-  // Apply rotation for Earth's spin
-  if (isEarth)
-  {
-    // Apply time-based rotation for Earth's spin around Z-axis
-    model = glm::rotate(model, body->getRotation(), body->getRotationAxis());
-  }
-
+  // Rotate and scale
+  model = glm::rotate(model, body->getRotation(), body->getRotationAxis());
   model = glm::scale(model, glm::vec3(body->getRadius()));
+
   sphereShader->setMat4("model", model);
   sphereShader->setVec3("objectColor", glm::vec3(0.0f, 0.0f, 1.0f)); // Blue default
 
+  // Find and apply texture if it exists
+  std::string textureName = body->getTextureName();
+  auto texture = textures.find(textureName);
+  if (!textureName.empty() && texture != textures.end())
+  {
+    texture->second->bind(0);
+    sphereShader->setInt("textureSampler", 0);
+    sphereShader->setBool("useTexture", true);
+  }
+  else
+  {
+    sphereShader->setBool("useTexture", false);
+  }
   // Set lighting properties based on body type
-  if (isSun)
+  if (textureName == "sun")
   {
     // Sun is self-illuminated and very bright
     sphereShader->setFloat("ambientStrength", 1.0f);
     sphereShader->setBool("isEmissive", true);
-
-    if (sunTextureLoaded)
-    {
-      sunTexture.bind(0);
-      sphereShader->setInt("textureSampler", 0);
-      sphereShader->setBool("useTexture", true);
-    }
-    else
-    {
-      sphereShader->setBool("useTexture", false);
-    }
   }
-  else if (isEarth)
+  else if (textureName == "earth")
   {
     // Earth has higher ambient to make dark side visible
     sphereShader->setFloat("ambientStrength", 0.35f);
     sphereShader->setBool("isEmissive", false);
-
-    // Use texture if available
-    if (earthTextureLoaded)
-    {
-      earthTexture.bind(0);
-      sphereShader->setInt("textureSampler", 0);
-      sphereShader->setBool("useTexture", true);
-    }
-    else
-    {
-      sphereShader->setBool("useTexture", false);
-    }
   }
-  else if (isMoon)
+  else if (textureName == "moon")
   {
     // Moon has slightly higher ambient for visibility
     sphereShader->setFloat("ambientStrength", 0.2f);
     sphereShader->setBool("isEmissive", false);
-
-    // Use texture if available
-    if (moonTextureLoaded)
-    {
-      moonTexture.bind(0);
-      sphereShader->setInt("textureSampler", 0);
-      sphereShader->setBool("useTexture", true);
-    }
-    else
-    {
-      sphereShader->setBool("useTexture", false);
-    }
   }
 
   sphereMesh.draw();
@@ -562,8 +506,39 @@ void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int w
 }
 
 // ========================================
-// MODEL LOADING HELPERS
+//  LOADING HELPERS
 // ========================================
+
+void Renderer::loadAllTextures()
+{
+  const std::string texturesDir = "textures";
+
+  // Check if textures directory exists
+  if (!fs::exists(texturesDir) || !fs::is_directory(texturesDir))
+  {
+    std::cout << "Note: textures/ directory not found. No textures loaded." << std::endl;
+    return;
+  }
+
+  for (const auto &entry : fs::directory_iterator(texturesDir))
+  {
+
+    std::string fileName = entry.path().filename().string();
+    std::filesystem::path key = fileName;
+    if (key.extension().string() != ".jpg")
+      continue;
+    key.replace_extension("");
+
+    // Try to load the .obj file with the same name as the folder
+    auto texture = std::make_shared<Texture>();
+    if (texture->load("textures/" + fileName))
+    {
+      textures[key.string()] = texture;
+    }
+  }
+
+  std::cout << "Total textures loaded: " << textures.size() << std::endl;
+}
 
 void Renderer::loadAllModels()
 {
@@ -592,11 +567,6 @@ void Renderer::loadAllModels()
       if (mesh->load(objPath))
       {
         objModels[folderName] = mesh;
-        std::cout << "Loaded satellite model: " << folderName << std::endl;
-      }
-      else
-      {
-        std::cout << "Warning: Failed to load model " << objPath << std::endl;
       }
     }
     else

@@ -299,14 +299,14 @@ bool OBJMesh::load(const std::string &filepath)
 
 bool OBJMesh::loadMTL(const std::string &filepath)
 {
-  printf("Attempting to load MTL file: %s\n", filepath.c_str());
+  // printf("Attempting to load MTL file: %s\n", filepath.c_str());
   std::ifstream file(filepath);
   if (!file.is_open())
   {
-    printf("\033[31mFailed to open MTL file: %s\033[0m\n", filepath.c_str());
+    // printf("\033[31mFailed to open MTL file: %s\033[0m\n", filepath.c_str());
     return false;
   }
-  printf("\033[32mMTL file opened successfully: %s\033[0m\n", filepath.c_str());
+  // printf("\033[32mMTL file opened successfully: %s\033[0m\n", filepath.c_str());
 
   Material currentMaterial;
   std::string currentMaterialName;
@@ -361,15 +361,15 @@ bool OBJMesh::loadMTL(const std::string &filepath)
 
   file.close();
 
-  printf("\033[32mLoaded %lu materials from MTL file\033[0m\n", materials.size());
-  for (const auto &matPair : materials)
-  {
-    printf("  Material: %s - Diffuse RGB(%.5f, %.5f, %.5f)\n",
-           matPair.first.c_str(),
-           matPair.second.diffuse.r,
-           matPair.second.diffuse.g,
-           matPair.second.diffuse.b);
-  }
+  // printf("\033[32mLoaded %lu materials from MTL file\033[0m\n", materials.size());
+  // for (const auto &matPair : materials)
+  // {
+  //   printf("  Material: %s - Diffuse RGB(%.5f, %.5f, %.5f)\n",
+  //          matPair.first.c_str(),
+  //          matPair.second.diffuse.r,
+  //          matPair.second.diffuse.g,
+  //          matPair.second.diffuse.b);
+  // }
 
   // Load textures for all materials
   // Extract base directory from MTL filepath
@@ -388,11 +388,11 @@ bool OBJMesh::loadMTL(const std::string &filepath)
       if (texture->load(texturePath))
       {
         mat.diffuseTexture = texture;
-        printf("  \033[32mLoaded texture: %s\033[0m\n", texturePath.c_str());
+        // printf("  \033[32mLoaded texture: %s\033[0m\n", texturePath.c_str());
       }
       else
       {
-        printf("  \033[31mFailed to load texture: %s\033[0m\n", texturePath.c_str());
+        // printf("  \033[31mFailed to load texture: %s\033[0m\n", texturePath.c_str());
       }
     }
   }

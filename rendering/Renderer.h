@@ -43,17 +43,12 @@ public:
 
   // Render individual components
   void renderStarBackground(const Camera &camera);
-  void renderCelestialBody(const std::shared_ptr<CelestialBody> &body, bool isEarth, bool isMoon, bool isSun);
+  void renderCelestialBody(const std::shared_ptr<CelestialBody> &body);
   void renderSpacecrafts(const std::vector<std::shared_ptr<Spacecraft>> &spacecrafts,
                          class VisualizationState &vizState,
                          const Spacecraft *selectedSpacecraft = nullptr);
   void renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations);
   void renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight);
-
-  // Getters for checking initialization status
-  bool hasEarthTexture() const { return earthTextureLoaded; }
-  bool hasMoonTexture() const { return moonTextureLoaded; }
-  bool hasStarsTexture() const { return starsTextureLoaded; }
 
   // Prevent copying
   Renderer(const Renderer &) = delete;
@@ -69,25 +64,17 @@ private:
   Cube cubeMesh;
   LineRenderer lineRenderer;
 
+  // Dynamically loaded textures (key = texture name from folder)
+  std::map<std::string, std::shared_ptr<Texture>> textures;
+
   // Dynamically loaded models (key = model name from folder)
   std::map<std::string, std::shared_ptr<OBJMesh>> objModels;
-
-  // Textures
-  Texture earthTexture;
-  Texture moonTexture;
-  Texture sunTexture;
-  Texture starsTexture;
-
-  // Texture loaded flags
-  bool earthTextureLoaded;
-  bool moonTextureLoaded;
-  bool sunTextureLoaded;
-  bool starsTextureLoaded;
 
   // Initialization state
   bool initialized;
 
   // Helper functions
+  void loadAllTextures();
   void loadAllModels();
 
   // ========== SPACECRAFT RENDER HELPER FUNCTIONS ==========
