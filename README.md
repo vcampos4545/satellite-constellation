@@ -16,36 +16,55 @@ A satellite constellation simulation.
 - **GLM**: OpenGL Mathematics library
 - **ImGui**: UI rendering (automatically fetched via CMake)
 
-### macOS Installation (Homebrew)
+### macOS (Homebrew)
 
 ```bash
 brew install glfw glew glm
 ```
 
-### Linux Installation (Ubuntu/Debian)
+### Linux (Ubuntu/Debian)
 
 ```bash
 sudo apt-get install libglfw3-dev libglew-dev libglm-dev
 ```
+
+### Windows (vcpkg)
+
+1. Install [vcpkg](https://github.com/microsoft/vcpkg):
+   ```powershell
+   git clone https://github.com/microsoft/vcpkg.git
+   cd vcpkg
+   .\bootstrap-vcpkg.bat
+   ```
+
+2. Install dependencies:
+   ```powershell
+   vcpkg install glew:x64-windows glfw3:x64-windows glm:x64-windows
+   ```
 
 ## Building
 
 ### macOS/Linux
 
 ```bash
-# Create build directory
 mkdir -p build
 cd build
-
-# Configure with CMake
 cmake ..
-
-# Build
 make
-
-# Run
 ./simulation
 ```
+
+### Windows
+
+```powershell
+mkdir build
+cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build . --config Release
+.\Release\simulation.exe
+```
+
+Or open the generated `.sln` file in Visual Studio and build from there.
 
 ### Build Options
 
@@ -56,6 +75,8 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 # Release build (default, optimized)
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
+
+On Windows with Visual Studio, use `--config Debug` or `--config Release` with `cmake --build`.
 
 ### ImGui (Dear ImGui)
 

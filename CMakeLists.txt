@@ -10,12 +10,28 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Add compiler optimization flags
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-  if(MSVC)
+# Platform-specific compiler flags
+if(MSVC)
+  # MSVC-specific flags
+  add_compile_options(/W3)  # Warning level 3
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(/O2)
-  else()
-    add_compile_options(-O3 -march=native)
+  endif()
+  # Prevent Windows.h from defining min/max macros
+  add_compile_definitions(NOMINMAX)
+  # Enable math constants like M_PI if needed
+  add_compile_definitions(_USE_MATH_DEFINES)
+  # Suppress deprecation warnings for standard C functions
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+else()
+  # GCC/Clang flags
+  add_compile_options(-Wall -Wextra)
+  if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-O3)
+    # Only use -march=native on non-cross-compile builds
+    if(NOT CMAKE_CROSSCOMPILING)
+      add_compile_options(-march=native)
+    endif()
   endif()
 endif()
 
@@ -53,14 +69,15 @@ FetchContent_MakeAvailable(imgui)
 set(IMGUI_DIR ${imgui_SOURCE_DIR})
 include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
+# Find OpenGL (available on all platforms)
+find_package(OpenGL REQUIRED)
+
 # Find GLEW
+# On Windows with vcpkg, GLEW is found automatically
 find_package(GLEW REQUIRED)
 
 # Find GLFW
 find_package(glfw3 REQUIRED)
-
-# Find OpenGL
-find_package(OpenGL REQUIRED)
 
 # Find GLM
 find_package(glm REQUIRED)
@@ -137,13 +154,17 @@ add_executable(simulation
 target_link_libraries(simulation
     GLEW::GLEW
     glfw
-    ${OPENGL_LIBRARIES}
+    OpenGL::GL
     glm::glm
 )
 
-# On macOS, we need to link against the CoreFoundation framework
-if (APPLE)
+# Platform-specific linking
+if(APPLE)
+    # macOS frameworks
     target_link_libraries(simulation "-framework CoreFoundation")
+elseif(WIN32)
+    # Windows-specific libraries (if needed)
+    # OpenGL32 is automatically linked via OpenGL::GL
 endif()
 
 # Copy resources to build directory
@@ -151,7 +172,25 @@ file(COPY rendering/shaders DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY resources/textures DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY resources/models DESTINATION ${CMAKE_BINARY_DIR})
 
+# On Windows with shared libraries, copy DLLs to output directory
+if(WIN32)
+    # For multi-config generators (Visual Studio), copy to both Debug and Release
+    if(CMAKE_CONFIGURATION_TYPES)
+        set(OUTPUT_DIRS ${CMAKE_BINARY_DIR}/Debug ${CMAKE_BINARY_DIR}/Release)
+    else()
+        set(OUTPUT_DIRS ${CMAKE_BINARY_DIR})
+    endif()
+
+    # Copy resource directories to all output directories for multi-config builds
+    foreach(OUTPUT_DIR ${OUTPUT_DIRS})
+        file(COPY rendering/shaders DESTINATION ${OUTPUT_DIR})
+        file(COPY resources/textures DESTINATION ${OUTPUT_DIR})
+        file(COPY resources/models DESTINATION ${OUTPUT_DIR})
+    endforeach()
+endif()
+
 # Print build info
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Project: ${PROJECT_NAME}")
+message(STATUS "Platform: ${CMAKE_SYSTEM_NAME}")
