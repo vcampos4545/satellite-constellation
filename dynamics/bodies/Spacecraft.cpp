@@ -12,13 +12,22 @@ Spacecraft::Spacecraft()
       quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
       angularVelocity(0.0, 0.0, 0.0),
       mass(260.0),                    // Default mass (kg)
-      inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
+      inertiaMatrix(glm::dmat3(0.0)), // Initialize to zero, then set diagonal
       dragCoefficient(2.2),           // Typical satellite drag coefficient
       crossSectionalArea(10.0),       // Default area (m²)
       reflectivity(1.3),              // Default reflectivity
       name(""),
       modelName("starlink")
 {
+  // Set realistic inertia for ~260 kg Starlink-like satellite
+  // Approximate dimensions: 3.2m x 1.6m x 0.2m (flat panel shape)
+  // Using I = (1/12) * m * (a² + b²) for rectangular prism
+  // Ixx (roll):  about X-axis (long axis) - (1/12)*260*(1.6² + 0.2²) ≈ 56 kg·m²
+  // Iyy (pitch): about Y-axis (short axis) - (1/12)*260*(3.2² + 0.2²) ≈ 223 kg·m²
+  // Izz (yaw):   about Z-axis (thin axis)  - (1/12)*260*(3.2² + 1.6²) ≈ 277 kg·m²
+  inertiaMatrix[0][0] = 56.0;   // Ixx (kg·m²)
+  inertiaMatrix[1][1] = 223.0;  // Iyy (kg·m²)
+  inertiaMatrix[2][2] = 277.0;  // Izz (kg·m²)
 }
 
 Spacecraft::Spacecraft(const glm::dvec3 &pos, const glm::dvec3 &vel)
@@ -27,26 +36,35 @@ Spacecraft::Spacecraft(const glm::dvec3 &pos, const glm::dvec3 &vel)
       quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
       angularVelocity(0.0, 0.0, 0.0),
       mass(260.0),                    // Default mass (kg)
-      inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
+      inertiaMatrix(glm::dmat3(0.0)), // Initialize to zero, then set diagonal
       dragCoefficient(2.2),           // Typical satellite drag coefficient
       crossSectionalArea(10.0),       // Default area (m²)
       reflectivity(1.3),              // Default reflectivity
       name(""),
       modelName("starlink")
 {
+  // Set realistic inertia (same as default constructor)
+  inertiaMatrix[0][0] = 56.0;   // Ixx (kg·m²)
+  inertiaMatrix[1][1] = 223.0;  // Iyy (kg·m²)
+  inertiaMatrix[2][2] = 277.0;  // Izz (kg·m²)
 }
 
 Spacecraft::Spacecraft(const Orbit &orbit, const std::string &name)
     : quaternion(1.0, 0.0, 0.0, 0.0), // Identity quaternion
       angularVelocity(0.0, 0.0, 0.0),
       mass(260.0),                    // Default mass (kg)
-      inertiaMatrix(glm::dmat3(1.0)), // Identity matrix
+      inertiaMatrix(glm::dmat3(0.0)), // Initialize to zero, then set diagonal
       dragCoefficient(2.2),           // Typical satellite drag coefficient
       crossSectionalArea(10.0),       // Default area (m²)
       reflectivity(1.3),              // Default reflectivity
       name(name),
       modelName("starlink")
 {
+  // Set realistic inertia (same as default constructor)
+  inertiaMatrix[0][0] = 56.0;   // Ixx (kg·m²)
+  inertiaMatrix[1][1] = 223.0;  // Iyy (kg·m²)
+  inertiaMatrix[2][2] = 277.0;  // Izz (kg·m²)
+
   // Compute initial position and velocity from orbital elements
   orbit.toCartesian(position, velocity, G * EARTH_MASS);
 }
@@ -113,10 +131,6 @@ glm::dvec3 Spacecraft::calculateAcceleration(const glm::dvec3 &pos,
   glm::dvec3 dragAccel = EnvironmentalModels::calculateAtmosphericDrag(pos, vel, earthCenter, mass, crossSectionalArea, dragCoefficient);
   glm::dvec3 srpAccel = EnvironmentalModels::calculateSolarRadiationPressure(pos, sunPos, earthCenter, mass, crossSectionalArea, reflectivity);
 
-  // Total acceleration (all forces combined)
-  // Earth: point mass + J2/J3/J4 perturbations
-  // Third bodies: Moon + Sun
-  // Non-gravitational: Drag + Solar radiation pressure
   return gravAccelEarth + gravAccelEarthJ + gravAccelMoon + gravAccelSun + dragAccel + srpAccel;
 }
 
@@ -139,32 +153,25 @@ void Spacecraft::update(double deltaTime,
   // Aggregate torques from all actuators (reaction wheels, magnetorquers, etc.)
   glm::dvec3 totalTorque = aggregateTorques();
 
-  // Integrate angular velocity using RK4
-  // Function to compute angular acceleration at a given state
+  // Angular acceleration function: dω/dt = I⁻¹ · (τ - ω × (I·ω))
   auto angularAccelFunc = [this, totalTorque](const glm::dvec3 &omega) -> glm::dvec3
   {
     return calculateAngularAcceleration(totalTorque, omega);
   };
 
-  // RK4 integration for angular velocity
-  glm::dvec3 k1 = angularAccelFunc(angularVelocity);
-  glm::dvec3 k2 = angularAccelFunc(angularVelocity + k1 * (deltaTime / 2.0));
-  glm::dvec3 k3 = angularAccelFunc(angularVelocity + k2 * (deltaTime / 2.0));
-  glm::dvec3 k4 = angularAccelFunc(angularVelocity + k3 * deltaTime);
-
-  angularVelocity += (k1 + 2.0 * k2 + 2.0 * k3 + k4) * (deltaTime / 6.0);
-
-  // Integrate quaternion from angular velocity
-  // Quaternion derivative: q' = 0.5 * ω_quat * q
+  // Quaternion derivative function: dq/dt = 0.5 * ω_quat * q
   // Where ω_quat = [0, ωx, ωy, ωz] (pure quaternion from angular velocity)
-  glm::dquat omegaQuat(0.0, angularVelocity.x, angularVelocity.y, angularVelocity.z);
-  glm::dquat qdot = 0.5 * omegaQuat * quaternion;
+  auto quatDotFunc = [](const glm::dquat &q, const glm::dvec3 &omega) -> glm::dquat
+  {
+    glm::dquat omegaQuat(0.0, omega.x, omega.y, omega.z);
+    return 0.5 * omegaQuat * q;
+  };
 
-  // Update quaternion using Euler integration (sufficient for small timesteps)
-  quaternion += qdot * deltaTime;
-
-  // Normalize quaternion to prevent drift
-  quaternion = glm::normalize(quaternion);
+  // Integrate both angular velocity and quaternion using coupled RK4
+  // This is more accurate than separate integration because it properly
+  // handles the coupling between ω and q at intermediate RK4 stages
+  RK4Integrator::integrateAttitude(quaternion, angularVelocity, deltaTime,
+                                   angularAccelFunc, quatDotFunc);
 
   // ========== COMPONENT UPDATES ==========
   // Update all components

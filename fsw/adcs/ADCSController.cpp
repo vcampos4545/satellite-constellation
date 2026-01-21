@@ -1,4 +1,5 @@
 #include "ADCSController.h"
+#include "AttitudeEstimator.h"
 #include "Spacecraft.h"
 #include "ReactionWheel.h"
 #include "GroundStation.h"
@@ -16,12 +17,10 @@ ADCSController::ADCSController()
       targetAngularVelocity(0.0),
       attitudeError(0.0),
       rateError(0.0),
-      currentTargetName("None")
+      currentTargetName("None"),
+      pidTuned(false)
 {
-  // Auto-tune PID controller for typical small satellite
-  // Assume moment of inertia ~1 kg·m² per axis
-  glm::dvec3 inertia(1.0, 1.0, 1.0);
-  pidController.autoTune(inertia, 20.0, 0.9); // 20s settling time, 0.9 damping
+  // PID will be tuned on first update with actual spacecraft inertia
 }
 
 void ADCSController::update(double deltaTime, Spacecraft &spacecraft, const SpacecraftEnvironment &environment)
@@ -29,6 +28,17 @@ void ADCSController::update(double deltaTime, Spacecraft &spacecraft, const Spac
   if (mode == Mode::OFF)
   {
     return; // ADCS disabled
+  }
+
+  // Auto-tune PID on first update with actual spacecraft inertia
+  if (!pidTuned)
+  {
+    glm::dvec3 inertia = spacecraft.getInertiaDiagonal();
+    // Use longer settling time for larger inertia spacecraft
+    // Settling time scales with sqrt(I) for fixed torque capability
+    double settlingTime = 60.0; // 60 seconds for large satellites
+    pidController.autoTune(inertia, settlingTime, 0.8); // 0.8 damping ratio
+    pidTuned = true;
   }
 
   // Step 1: Estimate attitude from sensors
@@ -42,21 +52,85 @@ void ADCSController::update(double deltaTime, Spacecraft &spacecraft, const Spac
   rateError = estimatedAngularVelocity - targetAngularVelocity;
 
   // Step 4: Command reaction wheels using PID control
-  commandReactionWheels(spacecraft);
+  commandReactionWheels(spacecraft, deltaTime);
 }
 
 void ADCSController::estimateAttitude(const Spacecraft &spacecraft)
 {
-  // For now, just use true attitude (perfect knowledge)
-  // In a real system, this would fuse data from:
-  // - IMU (gyroscopes for angular velocity, accelerometers for gravity vector)
-  // - Star tracker (high-precision attitude)
-  // - Sun sensor (coarse attitude)
-  // - Magnetometer (magnetic field vector)
-  // Using an Extended Kalman Filter or similar estimator
+  /**
+   * Attitude Estimation using TRIAD + Multiplicative EKF
+   *
+   * This simulates a realistic ADCS attitude determination system:
+   * 1. Gyroscope provides high-rate angular velocity measurements
+   * 2. Sun sensor + Earth sensor provide vector measurements for TRIAD
+   * 3. MEKF fuses gyro propagation with TRIAD updates
+   *
+   * In this simulation, we use "true" spacecraft state with simulated noise
+   * to demonstrate the filtering algorithm.
+   */
 
-  estimatedAttitude = spacecraft.getAttitude();
-  estimatedAngularVelocity = spacecraft.getAngularVelocity();
+  // Get true state (in real system, these would come from sensors)
+  glm::dvec3 trueOmega = spacecraft.getAngularVelocity();
+  glm::dquat trueAttitude = spacecraft.getAttitude();
+
+  // Simulate gyroscope measurement with noise
+  // Typical MEMS gyro: ~0.01 deg/s noise, ~0.001 deg/s bias drift
+  glm::dvec3 gyroNoise(
+      (rand() / (double)RAND_MAX - 0.5) * 0.0002, // ~0.01 deg/s
+      (rand() / (double)RAND_MAX - 0.5) * 0.0002,
+      (rand() / (double)RAND_MAX - 0.5) * 0.0002);
+  glm::dvec3 gyroMeasurement = trueOmega + gyroNoise;
+
+  // Initialize estimator on first call
+  if (!attitudeEstimator.isInitialized())
+  {
+    attitudeEstimator.initialize(trueAttitude);
+  }
+
+  // Propagate attitude estimate using gyro (high rate - every update)
+  // In real system, this would be called at gyro rate (e.g., 100 Hz)
+  attitudeEstimator.propagate(gyroMeasurement, 0.1); // Assume 10 Hz ADCS rate
+
+  // Simulate sun and nadir vector measurements for TRIAD
+  // These would come from sun sensor and Earth horizon sensor
+  static int updateCounter = 0;
+  updateCounter++;
+
+  // Update TRIAD every 10 cycles (~1 Hz measurement rate)
+  if (updateCounter >= 10)
+  {
+    updateCounter = 0;
+
+    // Sun vector in inertial frame (simplified - should come from ephemeris)
+    glm::dvec3 sunDir_inertial = glm::normalize(glm::dvec3(1.0, 0.0, 0.0)); // Assume sun in +X
+
+    // Nadir vector in inertial frame
+    glm::dvec3 nadirDir_inertial = glm::normalize(-spacecraft.getPosition());
+
+    // Transform to body frame using true attitude (simulates sensor measurements)
+    glm::dmat3 R_inertial_to_body = glm::mat3_cast(glm::inverse(trueAttitude));
+
+    // Add measurement noise (~1 degree for sun sensor, ~2 degrees for Earth sensor)
+    glm::dvec3 sunNoise(
+        (rand() / (double)RAND_MAX - 0.5) * 0.02,
+        (rand() / (double)RAND_MAX - 0.5) * 0.02,
+        (rand() / (double)RAND_MAX - 0.5) * 0.02);
+    glm::dvec3 nadirNoise(
+        (rand() / (double)RAND_MAX - 0.5) * 0.04,
+        (rand() / (double)RAND_MAX - 0.5) * 0.04,
+        (rand() / (double)RAND_MAX - 0.5) * 0.04);
+
+    glm::dvec3 sunDir_body = glm::normalize(R_inertial_to_body * sunDir_inertial + sunNoise);
+    glm::dvec3 nadirDir_body = glm::normalize(R_inertial_to_body * nadirDir_inertial + nadirNoise);
+
+    // Update estimator with TRIAD measurement
+    attitudeEstimator.update(sunDir_inertial, nadirDir_inertial,
+                              sunDir_body, nadirDir_body);
+  }
+
+  // Get filtered estimates
+  estimatedAttitude = attitudeEstimator.getAttitude();
+  estimatedAngularVelocity = attitudeEstimator.getAngularVelocity();
 }
 
 glm::dquat ADCSController::computeTargetQuaternion(const Spacecraft &spacecraft, const SpacecraftEnvironment &environment)
@@ -211,10 +285,10 @@ glm::dvec3 ADCSController::computeAttitudeError(const glm::dquat &current, const
   return angle * axis;
 }
 
-void ADCSController::commandReactionWheels(Spacecraft &spacecraft)
+void ADCSController::commandReactionWheels(Spacecraft &spacecraft, double deltaTime)
 {
-  // Compute control torque using PID controller
-  glm::dvec3 controlTorque = pidController.computeControl(attitudeError, rateError, 0.1); // Assume 0.1s update rate
+  // Compute control torque using PID controller with actual timestep
+  glm::dvec3 controlTorque = pidController.computeControl(attitudeError, rateError, deltaTime);
 
   // Get all reaction wheels
   auto wheels = spacecraft.getComponents<ReactionWheel>();

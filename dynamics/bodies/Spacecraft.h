@@ -37,6 +37,7 @@ public:
   glm::dquat getAttitude() const { return quaternion; }
   glm::dvec3 getAngularVelocity() const { return angularVelocity; }
   glm::dmat3 getInertiaMatrix() const { return inertiaMatrix; }
+  glm::dvec3 getInertiaDiagonal() const { return glm::dvec3(inertiaMatrix[0][0], inertiaMatrix[1][1], inertiaMatrix[2][2]); }
   double getMass() const { return mass; }
 
   // Physical properties getters

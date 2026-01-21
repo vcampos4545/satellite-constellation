@@ -106,7 +106,7 @@ void Renderer::render(const Universe &universe, const Camera &camera, int window
   renderSpacecrafts(universe.getSpacecrafts(), vizState, selectedSpacecraft);
 
   // Render coordinate axis overlay
-  renderCoordinateAxis(camera, windowWidth, windowHeight);
+  renderCoordinateAxis(camera);
 }
 
 void Renderer::renderStarBackground(const Camera &camera)
@@ -438,7 +438,7 @@ void Renderer::renderGroundStations(const std::vector<std::shared_ptr<GroundStat
     // Small sphere for ground station (50 km radius)
     glm::mat4 stationModel = glm::mat4(1.0f);
     stationModel = glm::translate(stationModel, stationPos);
-    stationModel = glm::scale(stationModel, glm::vec3(5.0e4f)); // 50 km radius
+    stationModel = glm::scale(stationModel, glm::vec3(2.5e4f)); // 25 km radius
     sphereShader->setMat4("model", stationModel);
 
     // Use bright red color for ground stations
@@ -448,7 +448,7 @@ void Renderer::renderGroundStations(const std::vector<std::shared_ptr<GroundStat
   }
 }
 
-void Renderer::renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight)
+void Renderer::renderCoordinateAxis(const Camera &camera)
 {
   // Save current viewport
   GLint viewport[4];

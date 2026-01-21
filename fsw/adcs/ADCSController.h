@@ -5,6 +5,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include "FlightSoftwareModule.h"
 #include "PIDController.h"
+#include "AttitudeEstimator.h"
 #include "SpacecraftEnvironment.h"
 #include <memory>
 
@@ -75,8 +76,9 @@ public:
 private:
   Mode mode;
   PIDController pidController;
+  AttitudeEstimator attitudeEstimator;
 
-  // Attitude estimation (for now, just use true attitude)
+  // Attitude estimates from MEKF
   glm::dquat estimatedAttitude;
   glm::dvec3 estimatedAngularVelocity;
 
@@ -90,6 +92,9 @@ private:
 
   // Target info
   std::string currentTargetName;
+
+  // PID tuning state
+  bool pidTuned;  // True after PID has been tuned for this spacecraft
 
   /**
    * Estimate attitude from sensors
@@ -134,8 +139,9 @@ private:
   /**
    * Command reaction wheels based on PID control
    * @param spacecraft Spacecraft with reaction wheels
+   * @param deltaTime Time step (seconds)
    */
-  void commandReactionWheels(Spacecraft &spacecraft);
+  void commandReactionWheels(Spacecraft &spacecraft, double deltaTime);
 };
 
 #endif // ADCS_CONTROLLER_H

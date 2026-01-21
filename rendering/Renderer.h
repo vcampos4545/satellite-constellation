@@ -48,7 +48,7 @@ public:
                          class VisualizationState &vizState,
                          const Spacecraft *selectedSpacecraft = nullptr);
   void renderGroundStations(const std::vector<std::shared_ptr<GroundStation>> &groundStations);
-  void renderCoordinateAxis(const Camera &camera, int windowWidth, int windowHeight);
+  void renderCoordinateAxis(const Camera &camera);
 
   // Prevent copying
   Renderer(const Renderer &) = delete;

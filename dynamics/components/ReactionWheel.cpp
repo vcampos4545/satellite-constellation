@@ -67,9 +67,10 @@ void ReactionWheel::reset()
 
 glm::dvec3 ReactionWheel::getTorque() const
 {
-  // Return torque vector in body frame
-  // Torque is along spin axis with magnitude of actualTorque
-  return enabled ? (spinAxis * actualTorque) : glm::dvec3(0.0);
+  // Return torque ON THE SPACECRAFT (not on the wheel)
+  // By Newton's 3rd law: when wheel accelerates, spacecraft experiences opposite torque
+  // If actualTorque > 0, wheel speeds up, spacecraft rotates in opposite direction
+  return enabled ? (spinAxis * (-actualTorque)) : glm::dvec3(0.0);
 }
 
 void ReactionWheel::commandTorque(const glm::dvec3 &torque)

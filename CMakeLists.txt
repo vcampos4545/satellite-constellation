@@ -112,6 +112,11 @@ add_executable(simulation
     dynamics/components/SolarPanel.cpp
     dynamics/components/GPS.cpp
     dynamics/components/ReactionWheel.cpp
+    dynamics/components/SunSensor.cpp
+    dynamics/components/Magnetometer.cpp
+    dynamics/components/Magnetorquer.cpp
+    dynamics/components/Thruster.cpp
+    dynamics/components/CMG.cpp
 
     # Scenarios
     scenarios/SSOTestScenario.cpp
@@ -124,6 +129,7 @@ add_executable(simulation
     fsw/FlightSoftware.cpp
     fsw/PIDController.cpp
     fsw/adcs/ADCSController.cpp
+    fsw/adcs/AttitudeEstimator.cpp
 
     # Rendering
     rendering/Renderer.cpp
