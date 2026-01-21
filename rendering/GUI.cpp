@@ -38,7 +38,7 @@ GUI::GUI(int screenWidth, int screenHeight, Simulation *simulation)
   printf("\033[32mGUI: Starting initialization...\033[0m\n");
   initWindow(screenWidth, screenHeight);
   printf("\033[32mGUI: Window initialized\033[0m\n");
-  initCamera(screenWidth, screenHeight);
+  initCamera();
   printf("\033[32mGUI: Camera initialized\033[0m\n");
   initRenderer();
   printf("\033[32mGUI: Renderer initialized\033[0m\n");
@@ -114,7 +114,7 @@ void GUI::initWindow(int width, int height)
   glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 }
 
-void GUI::initCamera(int width, int height)
+void GUI::initCamera()
 {
   m_camera.setDistance(2.5e7f);                    // 25,000 km
   m_camera.setTarget(glm::vec3(0.0f, 0.0f, 0.0f)); // set origin as target

@@ -57,7 +57,7 @@ private:
 
   // Setup functions
   void initWindow(int width, int height);
-  void initCamera(int width, int height);
+  void initCamera();
   void initRenderer();
   void initImGui();
   void setupCallbacks();
